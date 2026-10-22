@@ -1,0 +1,57 @@
+# OS files
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+
+# Local editor settings
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# Local environment and credentials (keep example files)
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+.aws/
+
+# Python environments and generated files
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+.coverage
+.coverage.*
+htmlcov/
+.ipynb_checkpoints/
+
+# Gradle / Java build output (keep gradle-wrapper.jar)
+.gradle/
+build/
+*.class
+/workplace/app/bin/
+
+# Logs
+*.log
+logs/
+
+# Generated RAG indexes (paths are relative to the launch directory)
+faiss_db/
+
+# Uploaded audio and generated speech
+/voice-ai_code/app/routers/uploads/
+output.mp3
