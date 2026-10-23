@@ -1,0 +1,23 @@
+{
+  "links": [
+    {
+      "node_id": "left.report",
+      "contact_id": "lab_safety",
+      "relation": "related_work_candidate_not_personal_number",
+      "status": "unverified"
+    },
+    {
+      "node_id": "center.dispatch",
+      "contact_id": "lab_safety",
+      "relation": "related_work_candidate_not_personal_number",
+      "status": "unverified"
+    },
+    {
+      "node_id": "right.submit",
+      "contact_id": "lab_safety",
+      "relation": "related_work_candidate_not_personal_number",
+      "status": "unverified"
+    }
+  ],
+  "fallback_links": []
+}

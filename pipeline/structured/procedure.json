@@ -1,0 +1,770 @@
+{
+  "schema_version": 1,
+  "extraction_method": "assistant_source_transcription_not_image_api",
+  "review_status": "pending_final_review",
+  "lanes": [
+    {
+      "lane_id": "left",
+      "condition_raw": "중대 연구실 사고",
+      "nodes": [
+        "left.start",
+        "left.conditions",
+        "left.report",
+        "left.request",
+        "left.team",
+        "left.submit"
+      ]
+    },
+    {
+      "lane_id": "center",
+      "condition_raw": null,
+      "nodes": [
+        "center.start",
+        "center.dispatch",
+        "center.report1",
+        "center.consult",
+        "center.review",
+        "center.report2",
+        "center.archive"
+      ]
+    },
+    {
+      "lane_id": "right",
+      "condition_raw": "중대 연구실사고 이외인 경우",
+      "nodes": [
+        "right.start",
+        "right.condition",
+        "right.submit",
+        "right.request",
+        "right.committee",
+        "right.followup"
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "left.start",
+      "lane_id": "left",
+      "actor_raw": null,
+      "actor_status": "not_stated_in_box",
+      "actions": [],
+      "actions_ordered": false,
+      "recipients_raw": [],
+      "deadline_raw": null,
+      "deadline_start": null,
+      "day_count_basis": null,
+      "execution_status": null,
+      "record_kind": "procedure_not_execution",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 34,
+        "printed_page": 33,
+        "location": "left column box 0",
+        "raw_text": "연구실 사고 발생",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "node_id": "left.conditions",
+      "lane_id": "left",
+      "actor_raw": null,
+      "actor_status": "not_stated_in_box",
+      "actions": [],
+      "actions_ordered": false,
+      "recipients_raw": [],
+      "deadline_raw": null,
+      "deadline_start": null,
+      "day_count_basis": null,
+      "execution_status": null,
+      "record_kind": "procedure_not_execution",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 34,
+        "printed_page": 33,
+        "location": "left column box 1",
+        "raw_text": "중대 연구실 사고\n① 사망 또는 후유장애 부상자 이상 발생\n② 3개월 이상의 요양을 요하는 부상자가 동시에 2명 이상 발생",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      },
+      "conditions": [
+        {
+          "raw": "사망 또는 후유장애 부상자 이상 발생",
+          "person_count": null,
+          "person_count_status": "unreadable_or_ambiguous"
+        },
+        {
+          "treatment_duration_months_min": 3,
+          "persons_min": 2,
+          "simultaneous": true,
+          "kind": "accident_classification_not_deadline"
+        }
+      ]
+    },
+    {
+      "node_id": "left.report",
+      "lane_id": "left",
+      "actor_raw": "사고 연구실 책임자(교수)",
+      "actor_status": "present",
+      "actions": [
+        "사고내용 보고"
+      ],
+      "actions_ordered": false,
+      "recipients_raw": [
+        "부서장",
+        "연구실 안전환경담당 부서장"
+      ],
+      "deadline_raw": "즉시",
+      "deadline_start": null,
+      "day_count_basis": null,
+      "execution_status": null,
+      "record_kind": "procedure_not_execution",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 34,
+        "printed_page": 33,
+        "location": "left column box 2",
+        "raw_text": "사고 연구실 책임자(교수)\n부서장 및 연구실 안전환경담당 부서장에게 사고내용 즉시 보고",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "node_id": "left.request",
+      "lane_id": "left",
+      "actor_raw": "사고 발생 기관의 장",
+      "actor_status": "present",
+      "actions": [
+        "사고조사 T/F팀 구성 요청"
+      ],
+      "actions_ordered": false,
+      "recipients_raw": [],
+      "deadline_raw": null,
+      "deadline_start": null,
+      "day_count_basis": null,
+      "execution_status": null,
+      "record_kind": "procedure_not_execution",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 34,
+        "printed_page": 33,
+        "location": "left column box 3",
+        "raw_text": "사고 발생 기관의 장\n“사고조사 T/F팀” 구성 요청",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "node_id": "left.team",
+      "lane_id": "left",
+      "actor_raw": "사고조사 T/F팀",
+      "actor_status": "present",
+      "actions": [
+        "사고원인 처리 및 대책수립"
+      ],
+      "actions_ordered": false,
+      "recipients_raw": [],
+      "deadline_raw": null,
+      "deadline_start": null,
+      "day_count_basis": null,
+      "execution_status": null,
+      "record_kind": "procedure_not_execution",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 34,
+        "printed_page": 33,
+        "location": "left column box 4",
+        "raw_text": "사고조사 T/F팀\n위원장: 부총장\n부위원장: 총무처장\n처리사항: 사고원인 처리 및 대책수립",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "node_id": "left.submit",
+      "lane_id": "left",
+      "actor_raw": null,
+      "actor_status": "not_stated_in_box",
+      "actions": [
+        "사고 보고서 제출"
+      ],
+      "actions_ordered": false,
+      "recipients_raw": [
+        "과학기술정보통신부"
+      ],
+      "deadline_raw": null,
+      "deadline_start": null,
+      "day_count_basis": null,
+      "execution_status": null,
+      "record_kind": "procedure_not_execution",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 34,
+        "printed_page": 33,
+        "location": "left column box 5",
+        "raw_text": "사고 보고서 제출(과학기술정보통신부)",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "node_id": "center.start",
+      "lane_id": "center",
+      "actor_raw": null,
+      "actor_status": "not_stated_in_box",
+      "actions": [],
+      "actions_ordered": false,
+      "recipients_raw": [],
+      "deadline_raw": null,
+      "deadline_start": null,
+      "day_count_basis": null,
+      "execution_status": null,
+      "record_kind": "procedure_not_execution",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 34,
+        "printed_page": 33,
+        "location": "center column box 0",
+        "raw_text": "연구실 사고 발생",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "node_id": "center.dispatch",
+      "lane_id": "center",
+      "actor_raw": "연구실 안전환경 관리 담당 부서",
+      "actor_status": "present",
+      "actions": [
+        "사고현장 출동",
+        "사고 현황 파악",
+        "초동 대응 업무 지원"
+      ],
+      "actions_ordered": false,
+      "recipients_raw": [],
+      "deadline_raw": null,
+      "deadline_start": null,
+      "day_count_basis": null,
+      "execution_status": null,
+      "record_kind": "procedure_not_execution",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 34,
+        "printed_page": 33,
+        "location": "center column box 1",
+        "raw_text": "연구실 안전환경 관리 담당 부서\n사고현장 출동·사고 현황 파악 및 초동 대응 업무 지원",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "node_id": "center.report1",
+      "lane_id": "center",
+      "actor_raw": null,
+      "actor_status": "not_stated_in_box",
+      "actions": [
+        "사고발생 보고"
+      ],
+      "actions_ordered": false,
+      "recipients_raw": [],
+      "deadline_raw": null,
+      "deadline_start": null,
+      "day_count_basis": null,
+      "execution_status": null,
+      "record_kind": "procedure_not_execution",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 34,
+        "printed_page": 33,
+        "location": "center column box 2",
+        "raw_text": "[중대 연구실 사고] 부총장 및 과학기술정보통신부 사고발생 보고\n[연구실 사고] 부총장 및 연구실 안전환경 관리위원회 사고 발생보고",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      },
+      "conditional_recipients": [
+        {
+          "condition_raw": "중대 연구실 사고",
+          "recipients": [
+            "부총장",
+            "과학기술정보통신부"
+          ]
+        },
+        {
+          "condition_raw": "연구실 사고",
+          "recipients": [
+            "부총장",
+            "연구실 안전환경 관리위원회"
+          ],
+          "condition_status": "ambiguous_scope"
+        }
+      ]
+    },
+    {
+      "node_id": "center.consult",
+      "lane_id": "center",
+      "actor_raw": null,
+      "actor_status": "not_stated_in_box",
+      "actions": [
+        "사고처리 기술자문"
+      ],
+      "actions_ordered": false,
+      "recipients_raw": [],
+      "deadline_raw": null,
+      "deadline_start": null,
+      "day_count_basis": null,
+      "execution_status": null,
+      "record_kind": "procedure_not_execution",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 34,
+        "printed_page": 33,
+        "location": "center column box 3",
+        "raw_text": "사고처리 기술자문",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "node_id": "center.review",
+      "lane_id": "center",
+      "actor_raw": null,
+      "actor_status": "not_stated_in_box",
+      "actions": [
+        "사고처리 결과 검토"
+      ],
+      "actions_ordered": false,
+      "recipients_raw": [],
+      "deadline_raw": null,
+      "deadline_start": null,
+      "day_count_basis": null,
+      "execution_status": null,
+      "record_kind": "procedure_not_execution",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 34,
+        "printed_page": 33,
+        "location": "center column box 4",
+        "raw_text": "사고처리 결과 검토\n사고처리 미흡시 보완",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      },
+      "conditional_actions": [
+        {
+          "condition_raw": "사고처리 미흡시",
+          "action": "보완",
+          "back_edge": null
+        }
+      ]
+    },
+    {
+      "node_id": "center.report2",
+      "lane_id": "center",
+      "actor_raw": null,
+      "actor_status": "not_stated_in_box",
+      "actions": [
+        "사고발생 보고"
+      ],
+      "actions_ordered": false,
+      "recipients_raw": [],
+      "deadline_raw": null,
+      "deadline_start": null,
+      "day_count_basis": null,
+      "execution_status": null,
+      "record_kind": "procedure_not_execution",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 34,
+        "printed_page": 33,
+        "location": "center column box 5",
+        "raw_text": "[중대 연구실 사고] 부총장 및 과학기술정보통신부 사고발생 보고\n[연구실 사고] 부총장 및 연구실 안전환경 관리위원회 사고 발생보고",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      },
+      "conditional_recipients": [
+        {
+          "condition_raw": "중대 연구실 사고",
+          "recipients": [
+            "부총장",
+            "과학기술정보통신부"
+          ]
+        },
+        {
+          "condition_raw": "연구실 사고",
+          "recipients": [
+            "부총장",
+            "연구실 안전환경 관리위원회"
+          ],
+          "condition_status": "ambiguous_scope"
+        }
+      ]
+    },
+    {
+      "node_id": "center.archive",
+      "lane_id": "center",
+      "actor_raw": null,
+      "actor_status": "not_stated_in_box",
+      "actions": [
+        "사고사례 공개",
+        "기록보존",
+        "유사사고 재발 방지교육"
+      ],
+      "actions_ordered": false,
+      "recipients_raw": [],
+      "deadline_raw": null,
+      "deadline_start": null,
+      "day_count_basis": null,
+      "execution_status": null,
+      "record_kind": "procedure_not_execution",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 34,
+        "printed_page": 33,
+        "location": "center column box 6",
+        "raw_text": "사고사례 공개,기록보존\n유사사고 재발 방지교육",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "node_id": "right.start",
+      "lane_id": "right",
+      "actor_raw": null,
+      "actor_status": "not_stated_in_box",
+      "actions": [],
+      "actions_ordered": false,
+      "recipients_raw": [],
+      "deadline_raw": null,
+      "deadline_start": null,
+      "day_count_basis": null,
+      "execution_status": null,
+      "record_kind": "procedure_not_execution",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 34,
+        "printed_page": 33,
+        "location": "right column box 0",
+        "raw_text": "연구실 사고 발생",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "node_id": "right.condition",
+      "lane_id": "right",
+      "actor_raw": null,
+      "actor_status": "not_stated_in_box",
+      "actions": [],
+      "actions_ordered": false,
+      "recipients_raw": [],
+      "deadline_raw": null,
+      "deadline_start": null,
+      "day_count_basis": null,
+      "execution_status": null,
+      "record_kind": "procedure_not_execution",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 34,
+        "printed_page": 33,
+        "location": "right column box 1",
+        "raw_text": "연구실 사고\n중대 연구실사고 이외인 경우",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "node_id": "right.submit",
+      "lane_id": "right",
+      "actor_raw": "사고 연구실 책임(교수)",
+      "actor_status": "present",
+      "actions": [
+        "사고경위서 제출"
+      ],
+      "actions_ordered": false,
+      "recipients_raw": [
+        "부서장",
+        "연구실 안전환경 관리자"
+      ],
+      "deadline_raw": "3일 이내",
+      "deadline_start": null,
+      "day_count_basis": null,
+      "execution_status": null,
+      "record_kind": "procedure_not_execution",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 34,
+        "printed_page": 33,
+        "location": "right column box 2",
+        "raw_text": "사고 연구실 책임(교수)\n부서장 및 연구실 안전환경 관리자에게 사고경위서 3일 이내 제출",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "node_id": "right.request",
+      "lane_id": "right",
+      "actor_raw": "연구실 안전관리위원장",
+      "actor_status": "present",
+      "actions": [
+        "연구실 안전환경관리 위원회 소집 요청"
+      ],
+      "actions_ordered": false,
+      "recipients_raw": [],
+      "deadline_raw": null,
+      "deadline_start": null,
+      "day_count_basis": null,
+      "execution_status": null,
+      "record_kind": "procedure_not_execution",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 34,
+        "printed_page": 33,
+        "location": "right column box 3",
+        "raw_text": "연구실 안전관리위원장\n연구실 안전환경관리 위원회 소집 요청",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "node_id": "right.committee",
+      "lane_id": "right",
+      "actor_raw": "연구실 안전환경관리위원회",
+      "actor_status": "present",
+      "actions": [
+        "사고조사 T/F팀 구성 및 운영내용",
+        "사고원인, 경위조사"
+      ],
+      "actions_ordered": false,
+      "recipients_raw": [],
+      "deadline_raw": null,
+      "deadline_start": null,
+      "day_count_basis": null,
+      "execution_status": null,
+      "record_kind": "procedure_not_execution",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 34,
+        "printed_page": 33,
+        "location": "right column box 4",
+        "raw_text": "연구실 안전환경관리위원회\n위원장: 1인(부총장)\n위원: 연구실 안전환경관리 위원\n처리사항: 사고조사 T/F팀 구성 및 운영내용, 사고원인, 경위조사",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "node_id": "right.followup",
+      "lane_id": "right",
+      "actor_raw": "사고 연구실 책임자(교수)",
+      "actor_status": "present",
+      "actions": [
+        "유사사고 재발방지 조치 이행"
+      ],
+      "actions_ordered": false,
+      "recipients_raw": [],
+      "deadline_raw": null,
+      "deadline_start": null,
+      "day_count_basis": null,
+      "execution_status": null,
+      "record_kind": "procedure_not_execution",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 34,
+        "printed_page": 33,
+        "location": "right column box 5",
+        "raw_text": "사고 연구실 책임자(교수)\n유사사고 재발방지 조치 이행",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "left.start",
+      "to": "left.conditions",
+      "basis": "within_column_downward_arrow",
+      "review_status": "source_visual_transcription"
+    },
+    {
+      "from": "left.conditions",
+      "to": "left.report",
+      "basis": "within_column_downward_arrow",
+      "review_status": "source_visual_transcription"
+    },
+    {
+      "from": "left.report",
+      "to": "left.request",
+      "basis": "within_column_downward_arrow",
+      "review_status": "source_visual_transcription"
+    },
+    {
+      "from": "left.request",
+      "to": "left.team",
+      "basis": "within_column_downward_arrow",
+      "review_status": "source_visual_transcription"
+    },
+    {
+      "from": "left.team",
+      "to": "left.submit",
+      "basis": "within_column_downward_arrow",
+      "review_status": "source_visual_transcription"
+    },
+    {
+      "from": "center.start",
+      "to": "center.dispatch",
+      "basis": "within_column_downward_arrow",
+      "review_status": "source_visual_transcription"
+    },
+    {
+      "from": "center.dispatch",
+      "to": "center.report1",
+      "basis": "within_column_downward_arrow",
+      "review_status": "source_visual_transcription"
+    },
+    {
+      "from": "center.report1",
+      "to": "center.consult",
+      "basis": "within_column_downward_arrow",
+      "review_status": "source_visual_transcription"
+    },
+    {
+      "from": "center.consult",
+      "to": "center.review",
+      "basis": "within_column_downward_arrow",
+      "review_status": "source_visual_transcription"
+    },
+    {
+      "from": "center.review",
+      "to": "center.report2",
+      "basis": "within_column_downward_arrow",
+      "review_status": "source_visual_transcription"
+    },
+    {
+      "from": "center.report2",
+      "to": "center.archive",
+      "basis": "within_column_downward_arrow",
+      "review_status": "source_visual_transcription"
+    },
+    {
+      "from": "right.start",
+      "to": "right.condition",
+      "basis": "within_column_downward_arrow",
+      "review_status": "source_visual_transcription"
+    },
+    {
+      "from": "right.condition",
+      "to": "right.submit",
+      "basis": "within_column_downward_arrow",
+      "review_status": "source_visual_transcription"
+    },
+    {
+      "from": "right.submit",
+      "to": "right.request",
+      "basis": "within_column_downward_arrow",
+      "review_status": "source_visual_transcription"
+    },
+    {
+      "from": "right.request",
+      "to": "right.committee",
+      "basis": "within_column_downward_arrow",
+      "review_status": "source_visual_transcription"
+    },
+    {
+      "from": "right.committee",
+      "to": "right.followup",
+      "basis": "within_column_downward_arrow",
+      "review_status": "source_visual_transcription"
+    }
+  ],
+  "cross_lane_edges": [],
+  "issues": [
+    "left.conditions first person count unresolved",
+    "center 연구실 사고 scope ambiguous",
+    "center.report1/report2 repetition intent unknown",
+    "bounding boxes unverified"
+  ],
+  "source_corrections": [
+    {
+      "nodes": [
+        "left.report",
+        "right.submit"
+      ],
+      "user_summary": "부총장",
+      "source_reading": "부서장",
+      "resolution": "source_preserved"
+    }
+  ]
+}

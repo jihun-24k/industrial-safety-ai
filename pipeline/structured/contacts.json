@@ -1,0 +1,265 @@
+{
+  "schema_version": 1,
+  "extraction_method": "assistant_source_transcription_not_image_api",
+  "contacts": [
+    {
+      "contact_id": "duty_hq",
+      "institution_scope": "lab_safety_manual_institution_unverified",
+      "organization_raw": "당직실",
+      "department_raw": "본부",
+      "role_raw": "당직실 본부",
+      "phone_numbers_raw": [
+        "760-2624",
+        "760-2119"
+      ],
+      "number_relation": "listed",
+      "priority": null,
+      "dialable_numbers": null,
+      "dialable_status": "unverified",
+      "internal_phone_label": true,
+      "availability_raw": "주간/야간",
+      "availability_normalized": "all_times",
+      "current_validity": "unverified",
+      "review_status": "source_transcription_pending_final_review",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 32,
+        "printed_page": null,
+        "location": "duty_hq",
+        "raw_text": "당직실 | 본부 | 당직실 본부 | 760-2624\n760-2119 | 주간/야간",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "contact_id": "duty_facilities",
+      "institution_scope": "lab_safety_manual_institution_unverified",
+      "organization_raw": "당직실",
+      "department_raw": "시설",
+      "role_raw": "당직실 시설",
+      "phone_numbers_raw": [
+        "760-2609"
+      ],
+      "number_relation": "single",
+      "priority": null,
+      "dialable_numbers": null,
+      "dialable_status": "unverified",
+      "internal_phone_label": true,
+      "availability_raw": "야간",
+      "availability_normalized": "nighttime",
+      "current_validity": "unverified",
+      "review_status": "source_transcription_pending_final_review",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 32,
+        "printed_page": null,
+        "location": "duty_facilities",
+        "raw_text": "당직실 | 시설 | 당직실 시설 | 760-2609 | 야간",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "contact_id": "lab_safety",
+      "institution_scope": "lab_safety_manual_institution_unverified",
+      "organization_raw": "대학본부",
+      "department_raw": null,
+      "role_raw": "연구실 안전관리",
+      "phone_numbers_raw": [
+        "760-2796"
+      ],
+      "number_relation": "single",
+      "priority": null,
+      "dialable_numbers": null,
+      "dialable_status": "unverified",
+      "internal_phone_label": true,
+      "availability_raw": "주간",
+      "availability_normalized": "daytime",
+      "current_validity": "unverified",
+      "review_status": "source_transcription_pending_final_review",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 32,
+        "printed_page": null,
+        "location": "lab_safety",
+        "raw_text": "대학본부 |  | 연구실 안전관리 | 760-2796 | 주간",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "contact_id": "waste",
+      "institution_scope": "lab_safety_manual_institution_unverified",
+      "organization_raw": "대학본부",
+      "department_raw": null,
+      "role_raw": "폐시약/폐기물관리",
+      "phone_numbers_raw": [
+        "760-2611"
+      ],
+      "number_relation": "single",
+      "priority": null,
+      "dialable_numbers": null,
+      "dialable_status": "unverified",
+      "internal_phone_label": true,
+      "availability_raw": "주간",
+      "availability_normalized": "daytime",
+      "current_validity": "unverified",
+      "review_status": "source_transcription_pending_final_review",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 32,
+        "printed_page": null,
+        "location": "waste",
+        "raw_text": "대학본부 |  | 폐시약/폐기물관리 | 760-2611 | 주간",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "contact_id": "fire_safety",
+      "institution_scope": "lab_safety_manual_institution_unverified",
+      "organization_raw": "대학본부",
+      "department_raw": null,
+      "role_raw": "소방 안전관리",
+      "phone_numbers_raw": [
+        "760-2119"
+      ],
+      "number_relation": "single",
+      "priority": null,
+      "dialable_numbers": null,
+      "dialable_status": "unverified",
+      "internal_phone_label": true,
+      "availability_raw": "주간",
+      "availability_normalized": "daytime",
+      "current_validity": "unverified",
+      "review_status": "source_transcription_pending_final_review",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 32,
+        "printed_page": null,
+        "location": "fire_safety",
+        "raw_text": "대학본부 |  | 소방 안전관리 | 760-2119 | 주간",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "contact_id": "hospital",
+      "institution_scope": "lab_safety_manual_institution_unverified",
+      "organization_raw": "원주세브란스 기독병원",
+      "department_raw": null,
+      "role_raw": "병원",
+      "phone_numbers_raw": [
+        "741-0114"
+      ],
+      "number_relation": "single",
+      "priority": null,
+      "dialable_numbers": null,
+      "dialable_status": "unverified",
+      "internal_phone_label": false,
+      "availability_raw": "주간/야간",
+      "availability_normalized": "all_times",
+      "current_validity": "unverified",
+      "review_status": "source_transcription_pending_final_review",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 32,
+        "printed_page": null,
+        "location": "hospital",
+        "raw_text": "원주세브란스 기독병원 |  | 병원 | 741-0114 | 주간/야간",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "contact_id": "fire_station",
+      "institution_scope": "lab_safety_manual_institution_unverified",
+      "organization_raw": "원주소방서(흥업119안전센터)",
+      "department_raw": null,
+      "role_raw": "소방서",
+      "phone_numbers_raw": [
+        "765-2119",
+        "119"
+      ],
+      "number_relation": "alternative",
+      "priority": null,
+      "dialable_numbers": null,
+      "dialable_status": "unverified",
+      "internal_phone_label": false,
+      "availability_raw": "주간/야간",
+      "availability_normalized": "all_times",
+      "current_validity": "unverified",
+      "review_status": "source_transcription_pending_final_review",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 32,
+        "printed_page": null,
+        "location": "fire_station",
+        "raw_text": "원주소방서(흥업119안전센터) |  | 소방서 | 765-2119 또는 119 | 주간/야간",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    },
+    {
+      "contact_id": "police",
+      "institution_scope": "lab_safety_manual_institution_unverified",
+      "organization_raw": "원주경찰서(흥업지구대)",
+      "department_raw": null,
+      "role_raw": "경찰서",
+      "phone_numbers_raw": [
+        "762-0240",
+        "112"
+      ],
+      "number_relation": "alternative",
+      "priority": null,
+      "dialable_numbers": null,
+      "dialable_status": "unverified",
+      "internal_phone_label": false,
+      "availability_raw": "주간/야간",
+      "availability_normalized": "all_times",
+      "current_validity": "unverified",
+      "review_status": "source_transcription_pending_final_review",
+      "evidence": {
+        "doc_id": "lab_safety_manual",
+        "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+        "pdf_page": 32,
+        "printed_page": null,
+        "location": "police",
+        "raw_text": "원주경찰서(흥업지구대) |  | 경찰서 | 762-0240 또는 112 | 주간/야간",
+        "bbox": null,
+        "bbox_status": "not_verified",
+        "coordinate_system": null,
+        "raw_text_kind": "layout_normalized_source_transcription",
+        "full_native_page_artifact": "pipeline_artifacts/structure-review/source-pages.jsonl"
+      }
+    }
+  ]
+}
