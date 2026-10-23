@@ -21,7 +21,7 @@ const emit = defineEmits([
 ]);
 
 const inputDisabled = computed(() => props.busy || props.uploading || props.voiceState !== 'idle' || props.ttsLoading);
-const voiceLabel = computed(() => ({idle:'음성으로 질문하기', requesting:'마이크 권한 확인 중…', recording:'녹음 중지하고 변환', transcribing:'음성을 글로 바꾸는 중…'})[props.voiceState]);
+const voiceLabel = computed(() => ({idle:'음성으로 질문하기 · 3초 무음 후 자동 전송', connecting:'음성 서버 연결 중 · 누르면 취소', requesting:'마이크 권한 확인 중 · 누르면 취소', recording:'녹음 중지 · 직접 전송하기', transcribing:'최종 인식 중 · 누르면 취소'})[props.voiceState]);
 
 function handleKeydown(event) {
   if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
@@ -61,14 +61,14 @@ function handleFile(event) {
           <span v-if="uploading" class="upload-label" role="status">PDF 처리 중…</span>
         </div>
         <div class="input-actions">
-          <button type="button" class="microphone-button" :class="{recording:voiceState === 'recording'}" :aria-label="voiceLabel" :title="voiceLabel" :aria-pressed="voiceState === 'recording'" :disabled="busy || uploading || ttsLoading || voiceState === 'requesting' || voiceState === 'transcribing'" @click="$emit('voice')">
+          <button type="button" class="microphone-button" :class="{recording:voiceState === 'recording'}" :aria-label="voiceLabel" :title="voiceLabel" :aria-pressed="voiceState === 'recording'" :disabled="busy || uploading || ttsLoading" @click="$emit('voice')">
             <svg v-if="voiceState !== 'recording'" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0014 0v-2M12 19v3m-4 0h8"/></svg>
             <span v-else aria-hidden="true">■</span>
           </button>
           <button class="send-button" aria-label="질문 보내기" :disabled="!props.draft.trim() || inputDisabled">↑</button>
         </div>
       </div>
-      <p v-if="voiceState !== 'idle'" class="voice-status" :class="{recording:voiceState === 'recording'}" role="status">{{voiceState === 'recording' ? '녹음 중 · 마이크 버튼을 다시 누르면 텍스트로 변환해요. 최대 60초' : voiceLabel}}</p>
+      <p class="voice-status" :class="{recording:voiceState === 'recording'}" role="status">{{voiceState === 'recording' ? '실시간 인식 중 · 말한 뒤 3초간 조용하면 자동으로 질문해요. 최대 60초' : voiceState === 'idle' ? '마이크로 말하면 실시간 입력 · 3초 무음 뒤 자동 질문' : voiceLabel}}</p>
     </form>
     <p class="composer-disclaimer">AI 답변은 참고용입니다. 실제 작업 시 현장 안전 지침을 우선 확인하세요.</p>
   </div>

@@ -1,6 +1,10 @@
 import os
 import subprocess
 from faster_whisper import WhisperModel
+import threading
+import numpy as np
+
+TRANSCRIPTION_LOCK = threading.Lock()
 
 # 1) Do not use GPU/MPS: fixed to CPU
 DEVICE = "cpu"
@@ -49,14 +53,20 @@ def transcribe_audio_file_local(file_path: str) -> str:
         raise FileNotFoundError(f"Input not found: {file_path}")
 
     # faster-whisper returns a segments generator.
-    segments, info = model.transcribe(
-        file_path,
-        beam_size=5,
-        vad_filter=True,     # Remove silence (generally improves quality/speed)
-    )
-
-    text = "".join(seg.text for seg in segments).strip()
+    with TRANSCRIPTION_LOCK:
+        segments, info = model.transcribe(file_path, beam_size=5, vad_filter=True)
+        text = "".join(seg.text for seg in segments).strip()
     return text
+
+
+def transcribe_pcm16(audio: bytes, final: bool = False) -> str:
+    """PCM s16le, mono 16 kHz. Consume the lazy segment iterator under the lock."""
+    if not audio:
+        return ''
+    samples = np.frombuffer(audio, dtype='<i2').astype(np.float32) / 32768.0
+    with TRANSCRIPTION_LOCK:
+        segments, _ = model.transcribe(samples, beam_size=5 if final else 1, vad_filter=True)
+        return ''.join(segment.text for segment in segments).strip()
 
 
 def transcribe_audio_file(file_path: str) -> str:

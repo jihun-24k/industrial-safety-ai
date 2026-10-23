@@ -7,7 +7,8 @@ import ChatComposer from '../components/ChatComposer.vue';
 import ChatHeader from '../components/ChatHeader.vue';
 import ConversationSidebar from '../components/ConversationSidebar.vue';
 import MessageList from '../components/MessageList.vue';
-import { createVoiceRecorder } from '../utils/voiceRecorder';
+import { createLiveVoiceInput } from '../utils/liveVoiceInput';
+import { captureMicrophone } from '../utils/microphone';
 
 const props = defineProps({
   user: { type: String, required: true },
@@ -41,13 +42,20 @@ const conversation = computed(() => conversations.value.find((chat) => chat.id =
 const messages = computed(() => conversation.value?.messages || []);
 const controlsDisabled = computed(() => busy.value || uploading.value || !!ttsLoading.value || voiceState.value !== 'idle');
 
-const voiceRecorder = createVoiceRecorder({
-  transcribe: voiceApi.transcribe,
+let voiceBase = '';
+function updateVoiceDraft(text) {
+  const combined = [voiceBase, text].filter(Boolean).join('\n');
+  if (combined.length > 6000) throw new Error('음성 질문이 6,000자 제한을 초과합니다. 질문을 짧게 나누어 주세요.');
+  draft.value = combined;
+}
+const voiceRecorder = createLiveVoiceInput({
+  openSocket: voiceApi.openStream,
+  capture: captureMicrophone,
   onState: state => { voiceState.value = state; },
-  onText: text => {
-    const combined = [draft.value.trim(), text].filter(Boolean).join('\n');
-    if (combined.length > 6000) throw new Error('음성을 추가하면 6,000자 제한을 초과합니다. 입력 내용을 줄여 주세요.');
-    draft.value = combined;
+  onPartial: updateVoiceDraft,
+  onFinal: (text, {autoSend}) => {
+    updateVoiceDraft(text);
+    if (autoSend) {notice.value='';return send();}
     notice.value = '음성을 입력했어요. 내용을 확인하거나 수정한 뒤 보내기를 눌러 주세요.';
   },
   onError: message => { error.value = message; },
@@ -55,11 +63,13 @@ const voiceRecorder = createVoiceRecorder({
 
 function toggleVoice() {
   if (voiceState.value === 'recording') { voiceRecorder.stop(); return; }
+  if (voiceState.value !== 'idle') { voiceRecorder.cancel(); notice.value='음성 입력을 취소했습니다.'; return; }
   if (controlsDisabled.value) return;
   if (props.demo) { error.value = '음성 질문은 실제 로그인 후 사용할 수 있습니다.'; return; }
   error.value = '';
   notice.value = '';
   stopAudio();
+  voiceBase = draft.value.trim();
   voiceRecorder.start();
 }
 

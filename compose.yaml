@@ -78,6 +78,7 @@ services:
       WHISPER_MODEL: ${WHISPER_MODEL:-small}
       HF_HOME: /models
       HF_HUB_DISABLE_TELEMETRY: "1"
+      STT_ALLOWED_ORIGINS: "${STT_ALLOWED_ORIGINS:-http://localhost:${FRONTEND_PORT:-5173},http://127.0.0.1:${FRONTEND_PORT:-5173}}"
     ports:
       - "127.0.0.1:${VOICE_PORT:-8008}:8008"
     volumes:
