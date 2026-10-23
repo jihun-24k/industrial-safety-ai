@@ -126,7 +126,7 @@ async function send(text = '') {
   scroll();
 
   try {
-    let answer;
+        let answer, sourceLabel;
     if (props.demo) {
       answer = '이 답변은 화면과 음성 재생을 확인하기 위한 예시입니다. 실제 자료 검색은 수행하지 않았습니다.\n\n로그인 후 문서에 관해 질문하거나 마이크 버튼으로 음성 질문을 입력할 수 있습니다.\n\n답변 아래의 ‘답변 듣기’를 누르면 음성이 재생됩니다.';
     } else {
@@ -134,7 +134,9 @@ async function send(text = '') {
       if (typeof data.response !== 'string' || !data.response.trim()) {
         throw new Error('답변이 비어 있습니다. 다시 질문해 주세요.');
       }
-      answer = data.response;
+      answer = text;
+      sourceLabel = data.handoff ? '근거 없음 · 안전관리자 확인 필요'
+                  : (data.sources?.length ? '출처: ' + data.sources.join(', ') : null);
     }
 
     chat.messages.push({
