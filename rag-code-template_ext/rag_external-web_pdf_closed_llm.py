@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from pypdf import PdfReader
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
 # 패키지는 저자 업데이트에 맞춰 해당 버전으로 맞추는 것을 권장
 # 직접 저자의 site-packages/패키지명/을 직접 수정하는 것은 추천하지 않음
@@ -71,6 +71,15 @@ except Exception as e:
     print(f"⚠️ 팀 파이프라인을 불러오지 못했습니다: {e}")
     USE_TEAM_INDEX = False
 print("✅ PDF 검색: 팀 파이프라인 인덱스 사용" if USE_TEAM_INDEX else "ℹ️ PDF 검색: faiss_db/pdf 사용")
+
+# ✅ 검색 계획(Query Planning): 사고 질문을 최대 8개 검색어로 나눠서 찾기
+SEARCH_PLAN_FILE = BASE_DIR / "prompts" / "search_plan.txt"
+SEARCH_PLAN_PROMPT = SEARCH_PLAN_FILE.read_text(encoding="utf-8") if SEARCH_PLAN_FILE.exists() else ""
+USE_SEARCH_PLAN = os.getenv("USE_SEARCH_PLAN", "true").lower() == "true" and bool(SEARCH_PLAN_PROMPT)
+MAX_PLAN_QUERIES = 8      # 프롬프트 규칙: 최대 8개 질의
+PLAN_TOP_K = 3            # 계획 검색어 하나당 가져올 청크 수
+MAX_CONTEXT_DOCS = 12     # LLM에게 넘길 최대 청크 수
+print("✅ 검색 계획 사용" if USE_SEARCH_PLAN else "ℹ️ 검색 계획 끔 (prompts/search_plan.txt 없음 또는 USE_SEARCH_PLAN=false)")
 
 # ✅ DB 연결 정보
 ASYNC_DB_URL = os.getenv("ASYNC_DB_URL", "mysql+aiomysql://root:password@127.0.0.1:53301/sql_db?charset=utf8mb4")
@@ -287,6 +296,8 @@ class AnswerResponse(BaseModel):
     sources: List[str] = []
     needs_review: bool = False   # 긴급·부상 상황 → 사람(안전관리자) 확인 필요
     handoff: bool = False        # 근거 없음 → 답변 대신 담당자에게 넘김
+    search_queries: List[str] = []        # 검색 계획으로 만든 검색어 (확인·디버깅용)
+    clarifying_questions: List[str] = []  # 판단에 필요한 추가 질문 (검색 계획이 제안)
 
 # ✅ RAG 기반 질의 응답 처리
 from fastapi import Body
@@ -337,11 +348,63 @@ def fallback_extract_from_context(context: str, question: str) -> str | None:
 # ✅ 질의 응답 라우터
 NOT_FOUND_MSG = "매뉴얼에서 관련 근거를 찾을 수 없습니다. 현장 안전관리자에게 문의하세요."
 EMERGENCY_WORDS = ["다쳤", "부상", "쓰러", "의식", "출혈", "피가", "화상", "데었", "골절", "끼였", "끼임",
-                   "감전", "화재", "불이", "폭발", "누출", "유출", "질식", "호흡"]
+                   "감전", "화재", "불이", "폭발", "누출", "유출", "새고", "샜", "질식", "호흡"]
 EMERGENCY_LINE = "⚠️ 사람이 다쳤거나 위험이 계속되면 즉시 119에 신고하고 현장 비상절차를 따르세요."
 
 def is_emergency(q: str) -> bool:
     return any(w in q for w in EMERGENCY_WORDS)
+
+INCIDENT_WORDS = EMERGENCY_WORDS + ["사고", "쏟", "엎질", "노출", "흡입", "튀었", "터졌", "냄새"]
+
+def is_incident(q: str) -> bool:
+    """사고 상황 질문인지 (단순 용어·기준 질문에는 검색 계획을 쓰지 않음)"""
+    return any(w in q for w in INCIDENT_WORDS)
+
+def make_search_plan(question: str) -> dict | None:
+    """검색 계획 프롬프트로 JSON 계획을 받는다. 실패하면 None → 원래 질문 하나로만 검색"""
+    try:
+        planner = ChatOpenAI(model=LLM_MODEL, temperature=0, timeout=30,
+                             model_kwargs={"response_format": {"type": "json_object"}})
+        raw = planner.invoke([SystemMessage(content=SEARCH_PLAN_PROMPT), HumanMessage(content=question)]).content
+        plan = json.loads(raw)
+        if not isinstance(plan.get("search_plan"), list):
+            return None
+        print(f"[검색 계획] {len(plan['search_plan'])}개 질의")
+        for item in plan["search_plan"]:
+            print(f"  - {item.get('id')} [{item.get('category')}] {item.get('query')} ({item.get('applicability')})")
+        return plan
+    except Exception as e:
+        print(f"⚠️ 검색 계획 실패 → 원래 질문으로만 검색: {e}")
+        return None
+
+# 물질 필터를 쓸 검색 묶음: 물질 MSDS에서 찾아야 하는 것만 (보고·연락망·일반 대응은 매뉴얼 전체에서 찾기)
+MATERIAL_FILTER_CATEGORIES = ("물질", "소화")
+_TEAM_STORE = {"folder": None, "store": None}
+
+def team_store_no_filter():
+    """조원 인덱스를 직접 불러온다 (물질 필터 없이 전체 검색용). current.json이 바뀌면 다시 불러옴"""
+    folder = team_pipeline.resolve_pointer(TEAM_CFG["output_root"], "current.json")
+    if _TEAM_STORE["folder"] != folder:
+        _TEAM_STORE["store"] = team_pipeline.load_index(
+            folder, TEAM_EMBEDDER, TEAM_CFG["embedding_model"], TEAM_CFG["embedding_dimension"])
+        _TEAM_STORE["folder"] = folder
+    return _TEAM_STORE["store"]
+
+def retrieve_one(source: str, use_team: bool, vectorstore, query: str, k: int, category: str | None = None):
+    """검색어 하나 → [(Document, 거리)]
+    category가 None(원래 질문)이거나 물질·소화 묶음이면 조원 search()(물질 필터 포함),
+    그 밖의 묶음(사고 대응·보고·연락망)은 필터 없이 매뉴얼 전체에서 검색"""
+    if use_team and category and not any(w in category for w in MATERIAL_FILTER_CATEGORIES):
+        print(f"[팀 검색] 물질 필터 없이 전체 검색 [{category}]: {query!r}")
+        return team_store_no_filter().similarity_search_with_score(query, k=k)
+    if use_team:
+        # 조원 search(): 물질명 매칭 시 해당 MSDS 페이지로 좁혀 검색 + 문서/페이지/조문 메타데이터
+        result = team_pipeline.search(TEAM_CFG, TEAM_EMBEDDER, query, k)
+        if result.get("material_filter_applied"):
+            print(f"[팀 검색] 물질 필터 적용: {query!r}")
+        return [(Document(page_content=r["text"], metadata={kk: v for kk, v in r.items() if kk != "text"}), r["distance"])
+                for r in result["results"]]
+    return vectorstore.similarity_search_with_score(query, k=k)
 
 def doc_label(doc) -> str:
     m = doc.metadata or {}
@@ -360,11 +423,12 @@ def build_prompt(context: str, question: str) -> str:
         "규칙:\n"
         "- [검색 내용]에 근거해서 한국어로 친절하고 구체적으로 답하세요.\n"
         "- 질문과 관련된 내용이 일부라도 있으면 그 내용을 정리해서 답하세요. 표·도식에서 뽑힌 끊어진 문장도 의미를 이어서 해석하세요.\n"
-        "- 문서에 없는 수치·절차는 지어내지 마세요.\n"
+        "- 문서에 없는 수치·절차는 지어내지 마세요.\n"        "- 연락처는 어느 기관(문서) 자료인지 함께 쓰고, 사용자 소속 기관의 번호로 단정하지 마세요.\n"
         "- 각 문장 끝에 근거 문서 번호를 괄호로 붙이세요. 예: (문서 2)\n"
         "- 질문과 관련된 내용이 [검색 내용]에 전혀 없을 때만 'N/A' 한 단어로 답하세요.\n\n"
         "답변 형식:\n"
-        "- 사고가 난 상황을 묻는 질문이면: 1. 즉시 조치 / 2. 원인 또는 위험요인 / 3. 예방 대책\n"
+        "- 사고가 난 상황을 묻는 질문이면: 1. 즉시 조치 / 2. 물질 위험성·주의사항 / 3. 소화 방법·주의(화재 관련 근거가 있을 때) / 4. 보고·후속 처리 / 5. 담당 부서·연락처\n"
+        "  (실제로 일어나지 않은 상황(예: 화재)의 근거는 '해당 시 참고'라고 구분해서 쓰세요.)\n"
         "- 기준·방법·수칙을 묻는 질문이면: 핵심 내용을 번호 목록으로\n"
         "- 문서에 없는 항목은 'N/A'라고 쓰지 말고 아예 빼세요.\n\n"
         f"[검색 내용]\n{context}\n\n"
@@ -381,7 +445,8 @@ def make_context(docs, limit_chars: int = 12000) -> str:
         excerpt = content[: max(0, limit_chars - total)]
         if not excerpt:
             break
-        chunks.append(f"[문서 {i}] ({doc_label(doc)})\n{excerpt}")
+        cat = (doc.metadata or {}).get("plan_category")
+        chunks.append(f"[문서 {i}] ({doc_label(doc)})" + (f" [검색 묶음: {cat}]" if cat else "") + f"\n{excerpt}")
         total += len(excerpt)
     return "\n\n".join(chunks)
 
@@ -401,18 +466,32 @@ async def rag_query(rag_request: RAGRequest = Body(...)):
     llm = ChatOpenAI(model=LLM_MODEL, temperature=0.2, timeout=30)
 
     try:
-        # 2. 검색 (거리 점수 포함)
-        if use_team:
-            # 조원 search(): 물질명 매칭 시 해당 MSDS 페이지로 좁혀 검색 + 문서/페이지/조문 메타데이터
-            result = team_pipeline.search(TEAM_CFG, TEAM_EMBEDDER, q, rag_request.top_k)
-            if result.get("material_filter_applied"):
-                print(f"[팀 검색] 물질 필터 적용: {[m.get('name') for m in result.get('material_matches', [])]}")
-            docs_scores = [
-                (Document(page_content=r["text"], metadata={k: v for k, v in r.items() if k != "text"}), r["distance"])
-                for r in result["results"]
-            ]
-        else:
-            docs_scores = vectorstore.similarity_search_with_score(q, k=rag_request.top_k)
+        # 2-1. 검색 계획: 사고 질문이면 검색어를 묶음별로 나눔 (단순 질문은 원래 질문만)
+        plan = await asyncio.to_thread(make_search_plan, q) if (USE_SEARCH_PLAN and is_incident(q)) else None
+        queries = [(None, q)]                                   # (검색 묶음, 검색어) — 원래 질문은 항상 포함
+        if plan:
+            queries += [(it.get("category"), it["query"]) for it in plan["search_plan"][:MAX_PLAN_QUERIES]
+                        if isinstance(it, dict) and it.get("query")]
+        k_each = rag_request.top_k if len(queries) == 1 else PLAN_TOP_K
+
+        # 2-2. 검색어마다 동시에 검색 (거리 점수 포함)
+        found_all = await asyncio.gather(*[
+            asyncio.to_thread(retrieve_one, rag_request.source, use_team, vectorstore, query, k_each, cat)
+            for cat, query in queries
+        ])
+
+        # 2-3. 합치기: 같은 청크는 한 번만, 계획 순서 유지, 최대 MAX_CONTEXT_DOCS개
+        seen, docs_scores = set(), []
+        for (cat, _), found in zip(queries, found_all):
+            for doc, score in found:
+                key = (doc.metadata or {}).get("chunk_id") or doc.page_content[:200]
+                if key in seen:
+                    continue
+                seen.add(key)
+                if cat:
+                    doc.metadata["plan_category"] = cat
+                docs_scores.append((doc, score))
+        docs_scores = docs_scores[:MAX_CONTEXT_DOCS]
         for i, (doc, score) in enumerate(docs_scores, start=1):
             print(f"[{rag_request.source.upper()} 검색 {i}] 거리={score:.4f}, 출처={doc_label(doc)}, 내용={doc.page_content[:120]!r}")
         if MAX_DISTANCE > 0:  # 선택: 거리 임계값으로 관련 없는 문서 제외
@@ -423,7 +502,7 @@ async def rag_query(rag_request: RAGRequest = Body(...)):
         # 3. 근거 없음 → LLM 호출하지 않고 handoff
         if not context.strip():
             answer = (EMERGENCY_LINE + "\n\n" if emergency else "") + NOT_FOUND_MSG
-            return AnswerResponse(prompt=q, answer=answer, sources=[], needs_review=emergency, handoff=True)
+            return AnswerResponse(prompt=q, answer=answer, sources=[], needs_review=emergency, handoff=True, search_queries=[qq for _, qq in queries[1:]], clarifying_questions=(plan or {}).get("clarifying_questions", []))
 
         # 4. LLM 답변 생성
         raw = llm.invoke([HumanMessage(content=build_prompt(context, q))]).content
@@ -435,12 +514,13 @@ async def rag_query(rag_request: RAGRequest = Body(...)):
         # 5. LLM이 근거 없다고 판단 → handoff
         if not final or final.upper().startswith("N/A"):
             answer = (EMERGENCY_LINE + "\n\n" if emergency else "") + NOT_FOUND_MSG
-            return AnswerResponse(prompt=q, answer=answer, sources=[], needs_review=emergency, handoff=True)
+            return AnswerResponse(prompt=q, answer=answer, sources=[], needs_review=emergency, handoff=True, search_queries=[qq for _, qq in queries[1:]], clarifying_questions=(plan or {}).get("clarifying_questions", []))
 
         # 6. 출처 정리: LLM이 실제로 인용한 (문서 N)만 표시, 인용이 없으면 검색된 문서 전체
         cited = [int(n) for n in re.findall(r"문서\s*(\d+)", final)]
         used = [docs[n - 1] for n in cited if 1 <= n <= len(docs)] or docs
         sources = list(dict.fromkeys(doc_label(d) for d in used))
+
         # (문서 N) → (파일명 p.N) 으로 바꿔서 사용자가 바로 알아보게
         def to_label(match):
             nums = [int(n) for n in re.findall(r"\d+", match.group(0))]
@@ -448,9 +528,10 @@ async def rag_query(rag_request: RAGRequest = Body(...)):
                       for n in nums if 1 <= n <= len(docs)]
             return f"({', '.join(dict.fromkeys(labels))})" if labels else ""
         final = re.sub(r"\(\s*문서\s*\d+(?:\s*,\s*문서\s*\d+)*\s*\)", to_label, final)
+
         if emergency:
             final = EMERGENCY_LINE + "\n\n" + final
-        return AnswerResponse(prompt=q, answer=final, sources=sources, needs_review=emergency, handoff=False)
+        return AnswerResponse(prompt=q, answer=final, sources=sources, needs_review=emergency, handoff=False, search_queries=[qq for _, qq in queries[1:]], clarifying_questions=(plan or {}).get("clarifying_questions", []))
 
     except HTTPException:
         raise
