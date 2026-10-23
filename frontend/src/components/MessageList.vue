@@ -45,9 +45,14 @@ defineExpose({ scrollToBottom });
             {{ message.role === 'assistant' ? '세이프메이트' : user }}
             <span v-if="message.source">{{ message.source }}</span>
           </div>
-          <div class="message-text">{{ message.text }}</div>
+          <div v-if="message.pending" class="thinking" role="status">
+            {{ message.status || '답변을 준비하고 있어요…' }}<span class="dots">···</span>
+          </div>
+          <div v-else class="message-text">
+            {{ message.text }}<span v-if="message.streaming" class="dots">···</span>
+          </div>
           <button
-            v-if="message.role === 'assistant'"
+            v-if="message.role === 'assistant' && !message.pending && !message.streaming && message.text"
             class="listen-button"
             :disabled="!!ttsLoading"
             :aria-pressed="speakingId === message.id"
@@ -57,7 +62,6 @@ defineExpose({ scrollToBottom });
           </button>
         </div>
       </article>
-      <div v-if="busy" class="thinking" role="status"><span>◇</span> 자료를 확인하고 답변을 준비하고 있어요<span class="dots">···</span></div>
     </div>
   </div>
 </template>
