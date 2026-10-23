@@ -1,0 +1,18 @@
+{
+  "policy_id": "user-contact-hours-v2-weekday-only",
+  "origin": "user_operating_rule",
+  "timezone": "Asia/Seoul",
+  "day_start": "09:00",
+  "day_end_exclusive": "18:00",
+  "day_weekdays": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "automatic_fallback": false,
+  "automatic_call": false,
+  "automatic_report": false,
+  "holiday_handling": "not_applied_per_user_request"
+}

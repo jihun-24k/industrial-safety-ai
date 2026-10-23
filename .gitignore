@@ -59,3 +59,9 @@ faiss_db/
 # Uploaded audio and generated speech
 /voice-ai_code/app/routers/uploads/
 output.mp3
+
+# Local development harness and private review records
+/.harness/
+
+# Generated PDF extraction and versioned development indexes
+/pipeline_artifacts/

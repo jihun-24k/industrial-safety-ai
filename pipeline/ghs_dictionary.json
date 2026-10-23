@@ -1,0 +1,93 @@
+{
+  "version": "safeops-ghs-v1",
+  "standard_mapping_source": "https://www.safeworkaustralia.gov.au/safety-topic/hazards/chemicals/classifying-chemicals/using-ghs",
+  "image_source": {
+    "filename": "연구실 안전관리 매뉴얼.pdf",
+    "pdf_page": 105,
+    "printed_page": 104,
+    "sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1"
+  },
+  "symbols": [
+    {
+      "code": "GHS01",
+      "symbol": "exploding_bomb",
+      "name_ko": "폭발하는 폭탄",
+      "general_meaning": "폭발 위험 등",
+      "asset": "Im9.png",
+      "asset_sha256": "57cb5b73dfb2d2d911f17bccb239056462c37a65be0dc330b6ad169836508503",
+      "source_legend_label": "GHS01"
+    },
+    {
+      "code": "GHS02",
+      "symbol": "flame",
+      "name_ko": "불꽃",
+      "general_meaning": "인화성 등",
+      "asset": "Im3.png",
+      "asset_sha256": "83bf3eabf2f1f2812f2dfa3d11ca481796c6dbc36091ec45dd19c435dfa4b94b",
+      "source_legend_label": "GHS02"
+    },
+    {
+      "code": "GHS03",
+      "symbol": "flame_over_circle",
+      "name_ko": "원 위의 불꽃",
+      "general_meaning": "산화성",
+      "asset": "Im10.png",
+      "asset_sha256": "6c994bff387a702f3a999df9d87d56dc68e7b5595a7555f905661306dad12d24",
+      "source_legend_label": "GHS06"
+    },
+    {
+      "code": "GHS04",
+      "symbol": "gas_cylinder",
+      "name_ko": "가스용기",
+      "general_meaning": "고압가스",
+      "asset": "Im7.png",
+      "asset_sha256": "04b2239ce4cb1f0eda15682c8864710b4b86fc76bd36ebb84c4964d5e73a66e3",
+      "source_legend_label": "GHS07"
+    },
+    {
+      "code": "GHS05",
+      "symbol": "corrosion",
+      "name_ko": "부식",
+      "general_meaning": "금속 부식 / 피부·눈 손상 등",
+      "asset": "Im6.png",
+      "asset_sha256": "8f6b65e968a8ce8b37ecfa9a3cdc4f3eabd8eb709de96863b47a562ab6b74422",
+      "source_legend_label": "GHS08"
+    },
+    {
+      "code": "GHS06",
+      "symbol": "skull_and_crossbones",
+      "name_ko": "해골과 뼈",
+      "general_meaning": "급성독성",
+      "asset": "Im4.png",
+      "asset_sha256": "9e15142d8c9a5b3d547cc21627d33b3631124c8d7aaa7db5667c6125ffdf99b7",
+      "source_legend_label": "GHS03"
+    },
+    {
+      "code": "GHS07",
+      "symbol": "exclamation_mark",
+      "name_ko": "느낌표",
+      "general_meaning": "자극성·유해성 등",
+      "asset": "Im2.png",
+      "asset_sha256": "ad93c921ee99a259e40d51c823a1174b8ca683785e4cc53b374e42eea96a8fad",
+      "source_legend_label": "GHS09"
+    },
+    {
+      "code": "GHS08",
+      "symbol": "health_hazard",
+      "name_ko": "건강 유해성",
+      "general_meaning": "발암성·호흡기 과민성 등",
+      "asset": "Im5.png",
+      "asset_sha256": "d193be530bc5f0c02c5b70ff2bbaf414c0f843bde59a32aab24d363ecfc4271b",
+      "source_legend_label": "GHS04"
+    },
+    {
+      "code": "GHS09",
+      "symbol": "environment",
+      "name_ko": "환경",
+      "general_meaning": "수생환경 유해성",
+      "asset": "Im8.png",
+      "asset_sha256": "8ce664926630e518a79172a4b502f37514fe723a799e81fb497816f8d6a84e28",
+      "source_legend_label": "GHS05"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "input_directory": "data",
+  "output_directory": "pipeline_artifacts",
+  "embedding_model": "text-embedding-ada-002",
+  "embedding_dimension": 1536,
+  "chunk_size": 1000,
+  "chunk_overlap": 100,
+  "documents": [
+    {
+      "doc_id": "lab_safety_manual",
+      "filename": "연구실 안전관리 매뉴얼.pdf",
+      "doc_type": "manual",
+      "sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+      "review_status": "pending_content_review",
+      "effective_date": null
+    },
+    {
+      "doc_id": "waste_management_act",
+      "filename": "폐기물관리법(법률)(제21467호)(20260918).pdf",
+      "doc_type": "law",
+      "sha256": "b7b4ab59225e4e840709d0b9455bcf0dc9d8ac3bb4b1d6698ff65b1ff3322a4a",
+      "review_status": "pending_content_review",
+      "effective_date": "2026-09-18",
+      "effective_date_basis": "provided_pdf_header_not_live_legal_verification"
+    }
+  ],
+  "recognition_references": [
+    {
+      "filename": "SafeOps_GHS_인식참고_v1.pdf",
+      "sha256": "27cf5d3fe6f6c9e7cdff26d5bd86da4c849cc8fb30c0f555647c250514f66ec8",
+      "purpose": "recognition_reference_only",
+      "rag_ingest": false,
+      "generated": true
+    }
+  ],
+  "reviewed_pictograms_sha256": "02ef156968d7503b267b729e2a7eab108f1e65ece6f5733c136acbd75ff1e440",
+  "structured_safety_sha256": "a2a4d8b1b16846a2ef3d26b33af2740467197b44f50c006c9891cf3cfae378ea"
+}
