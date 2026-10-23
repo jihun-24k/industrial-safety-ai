@@ -80,12 +80,6 @@ import com.auth0.jwt.interfaces.DecodedJWT;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
-import workplace.SimpleAuthServer.AuthService;
-import workplace.SimpleAuthServer.JdbcUserRepository;
-import workplace.SimpleAuthServer.JwtUtil;
-import workplace.SimpleAuthServer.User;
-import workplace.SimpleAuthServer.UserRepository;
-
 /*
 Pure Java + HttpServer + MariaDB + Session + JWT Example
 
