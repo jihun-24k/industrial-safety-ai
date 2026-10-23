@@ -1,6 +1,12 @@
-import { request } from './client';
+import { request } from './client.js';
 
 export const authApi = {
+  signup(username, password) {
+    return request('/auth-api/signup', {
+      method: 'POST',
+      body: new URLSearchParams({ username, password }),
+    });
+  },
   check() {
     return request('/auth-api/auth/check');
   },

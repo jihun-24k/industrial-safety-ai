@@ -1,11 +1,11 @@
-import { request } from './client';
+import { request } from './client.js';
 
 export const ragApi = {
-  query({ prompt, source, topK = 5 }) {
+  query({ prompt, topK = 5 }) {
     return request('/rag-api/rag-query', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, source, top_k: topK }),
+      body: JSON.stringify({ prompt, source: 'pdf', top_k: topK }),
     });
   },
 
@@ -15,8 +15,4 @@ export const ragApi = {
     return request('/rag-api/upload-paper', { method: 'POST', body });
   },
 
-  collectTopic(topic) {
-    const query = new URLSearchParams({ topic });
-    return request(`/rag-api/upload-topic?${query}`, { method: 'POST' });
-  },
 };

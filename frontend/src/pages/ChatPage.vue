@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, onUnmounted } from 'vue';
 import { authApi } from '../api/authApi';
 import { ragApi } from '../api/ragApi';
 import { voiceApi } from '../api/voiceApi';
@@ -7,6 +7,7 @@ import ChatComposer from '../components/ChatComposer.vue';
 import ChatHeader from '../components/ChatHeader.vue';
 import ConversationSidebar from '../components/ConversationSidebar.vue';
 import MessageList from '../components/MessageList.vue';
+import { createVoiceRecorder } from '../utils/voiceRecorder';
 
 const props = defineProps({
   user: { type: String, required: true },
@@ -17,7 +18,7 @@ const emit = defineEmits(['signed-out']);
 const draft = ref('');
 const busy = ref(false);
 const uploading = ref(false);
-const source = ref('web');
+const voiceState = ref('idle');
 const error = ref('');
 const notice = ref('');
 const conversations = ref([]);
@@ -36,7 +37,31 @@ const examples = [
 
 const conversation = computed(() => conversations.value.find((chat) => chat.id === activeId.value));
 const messages = computed(() => conversation.value?.messages || []);
-const controlsDisabled = computed(() => busy.value || uploading.value || !!ttsLoading.value);
+const controlsDisabled = computed(() => busy.value || uploading.value || !!ttsLoading.value || voiceState.value !== 'idle');
+
+const voiceRecorder = createVoiceRecorder({
+  transcribe: voiceApi.transcribe,
+  onState: state => { voiceState.value = state; },
+  onText: text => {
+    const combined = [draft.value.trim(), text].filter(Boolean).join('\n');
+    if (combined.length > 6000) throw new Error('음성을 추가하면 6,000자 제한을 초과합니다. 입력 내용을 줄여 주세요.');
+    draft.value = combined;
+    notice.value = '음성을 입력했어요. 내용을 확인하거나 수정한 뒤 보내기를 눌러 주세요.';
+  },
+  onError: message => { error.value = message; },
+});
+
+function toggleVoice() {
+  if (voiceState.value === 'recording') { voiceRecorder.stop(); return; }
+  if (controlsDisabled.value) return;
+  if (props.demo) { error.value = '음성 질문은 실제 로그인 후 사용할 수 있습니다.'; return; }
+  error.value = '';
+  notice.value = '';
+  stopAudio();
+  voiceRecorder.start();
+}
+
+onUnmounted(() => { voiceRecorder.cancel(); stopAudio(); });
 
 function scroll() {
   messageList.value?.scrollToBottom();
@@ -67,7 +92,6 @@ function newChat() {
   draft.value = '';
   error.value = '';
   notice.value = '';
-  source.value = 'web';
   menu.value = false;
 }
 
@@ -75,7 +99,6 @@ function selectChat(chat) {
   if (controlsDisabled.value) return;
   stopAudio();
   activeId.value = chat.id;
-  source.value = chat.source;
   error.value = '';
   menu.value = false;
   scroll();
@@ -83,13 +106,12 @@ function selectChat(chat) {
 
 async function send(text = '') {
   const prompt = (text || draft.value).trim();
-  if (!prompt || busy.value || uploading.value) return;
+  if (!prompt || controlsDisabled.value) return;
 
   if (!conversation.value) {
     const chat = {
       id: crypto.randomUUID(),
       title: prompt.slice(0, 26),
-      source: source.value,
       messages: [],
     };
     conversations.value.unshift(chat);
@@ -97,7 +119,6 @@ async function send(text = '') {
   }
 
   const chat = conversation.value;
-  chat.source = source.value;
   chat.messages.push({ id: crypto.randomUUID(), role: 'user', text: prompt });
   draft.value = '';
   error.value = '';
@@ -107,9 +128,9 @@ async function send(text = '') {
   try {
     let answer;
     if (props.demo) {
-      answer = '이 답변은 화면과 음성 재생을 확인하기 위한 예시입니다. 실제 자료 검색은 수행하지 않았습니다.\n\n로그인 후 질문을 보내면 연결된 자료를 검색해 답변합니다. PDF를 첨부하거나 검색 자료를 선택할 수 있습니다.\n\n답변 아래의 ‘답변 듣기’를 누르면 음성이 재생됩니다.';
+      answer = '이 답변은 화면과 음성 재생을 확인하기 위한 예시입니다. 실제 자료 검색은 수행하지 않았습니다.\n\n로그인 후 문서에 관해 질문하거나 마이크 버튼으로 음성 질문을 입력할 수 있습니다.\n\n답변 아래의 ‘답변 듣기’를 누르면 음성이 재생됩니다.';
     } else {
-      const data = await ragApi.query({ prompt, source: source.value });
+      const data = await ragApi.query({ prompt });
       if (typeof data.response !== 'string' || !data.response.trim()) {
         throw new Error('답변이 비어 있습니다. 다시 질문해 주세요.');
       }
@@ -120,7 +141,7 @@ async function send(text = '') {
       id: crypto.randomUUID(),
       role: 'assistant',
       text: answer,
-      source: props.demo ? '화면 미리보기' : source.value === 'pdf' ? 'PDF 자료 기반' : '웹 자료 기반',
+      source: props.demo ? '화면 미리보기' : '문서 자료 기반',
     });
   } catch (requestError) {
     error.value = requestError.message;
@@ -132,7 +153,7 @@ async function send(text = '') {
 }
 
 async function upload(file) {
-  if (busy.value || uploading.value) return;
+  if (controlsDisabled.value) return;
   if (!file.name.toLowerCase().endsWith('.pdf')) {
     error.value = 'PDF 파일을 선택해 주세요.';
     return;
@@ -146,7 +167,6 @@ async function upload(file) {
   error.value = '';
   try {
     await ragApi.uploadPaper(file);
-    source.value = 'pdf';
     notice.value = `${file.name} 자료가 준비되었습니다.`;
   } catch (uploadError) {
     error.value = uploadError.message;
@@ -156,7 +176,7 @@ async function upload(file) {
 }
 
 async function speak(message) {
-  if (ttsLoading.value) return;
+  if (controlsDisabled.value && speakingId.value !== message.id) return;
   if (speakingId.value === message.id) {
     stopAudio();
     return;
@@ -226,13 +246,15 @@ async function speak(message) {
       />
       <ChatComposer
         v-model:draft="draft"
-        v-model:source="source"
         :busy="busy"
         :uploading="uploading"
+        :voice-state="voiceState"
+        :tts-loading="!!ttsLoading"
         :error="error"
         :notice="notice"
         @send="send()"
         @upload="upload"
+        @voice="toggleVoice"
         @dismiss-error="error = ''"
         @dismiss-notice="notice = ''"
       />

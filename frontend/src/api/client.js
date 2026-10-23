@@ -12,7 +12,12 @@ export async function request(url, options = {}) {
 
   if (!response.ok) {
     if (response.status === 401) {
-      throw new Error('로그인이 필요하거나 만료되었습니다. 다시 로그인해 주세요.');
+      throw new Error(url === '/auth-api/login' ? '아이디와 비밀번호를 확인해 주세요.' : '로그인이 필요하거나 만료되었습니다. 다시 로그인해 주세요.');
+    }
+
+    if (url === '/auth-api/signup') {
+      if (typeof data === 'string' && data.includes('username already exists')) throw new Error('이미 사용 중인 아이디입니다. 다른 아이디를 입력해 주세요.');
+      throw new Error('회원가입을 처리하지 못했습니다. 입력 내용을 확인하고 다시 시도해 주세요.');
     }
 
     const message = typeof data === 'object'

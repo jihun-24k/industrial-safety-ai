@@ -1,4 +1,4 @@
-import { request } from './client';
+import { request } from './client.js';
 
 export const voiceApi = {
   synthesize(text) {
@@ -8,9 +8,9 @@ export const voiceApi = {
     });
   },
 
-  transcribe(audio) {
+  transcribe(audio, { signal } = {}) {
     const body = new FormData();
     body.append('audio', audio);
-    return request('/voice-api/stt/', { method: 'POST', body });
+    return request('/voice-api/stt/', { method: 'POST', body, signal });
   },
 };
