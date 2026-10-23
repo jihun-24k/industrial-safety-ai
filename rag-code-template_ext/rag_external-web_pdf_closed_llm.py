@@ -28,7 +28,7 @@ from langchain_core.messages import HumanMessage
 # from langchain.embeddings import HuggingFaceEmbeddings  
 # from pydantic import BaseModel
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Literal
 import os
 import re
 import json
@@ -49,6 +49,11 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 if not OPENAI_API_KEY:
     raise RuntimeError("OPENAI_API_KEY가 설정되지 않았습니다.")
+
+# ✅ RAG 설정 (.env로 변경 가능)
+LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o")
+MAX_DISTANCE = float(os.getenv("RAG_MAX_DISTANCE", "0"))          # 0이면 거리 필터 끔
+RESET_PDF_ON_UPLOAD = os.getenv("RESET_PDF_ON_UPLOAD", "false").lower() == "true"  # true면 업로드마다 교체
 
 # ✅ DB 연결 정보
 ASYNC_DB_URL = os.getenv("ASYNC_DB_URL", "mysql+aiomysql://root:password@127.0.0.1:53301/sql_db?charset=utf8mb4")
@@ -210,22 +215,28 @@ async def upload_pdf(file: UploadFile = File(...)):
             tmp_path = tmp.name
 
         try:
-            paper_text = load_paper(tmp_path)
+            reader = PdfReader(tmp_path)
+            # 페이지별로 Document를 만들어 출처(문서명·페이지)를 메타데이터로 보존
+            page_docs = [
+                Document(page_content=t, metadata={"source": file.filename, "page": i + 1})
+                for i, page in enumerate(reader.pages)
+                if (t := (page.extract_text() or "")).strip()
+            ]
         finally:
             os.unlink(tmp_path)
+        paper_text = "\n".join(d.page_content for d in page_docs)
         if not paper_text.strip():
             raise HTTPException(status_code=422, detail="PDF에서 텍스트를 추출하지 못했습니다. 스캔 PDF라면 OCR이 필요합니다.")
-        # [Q01] PDF 청크 설계
-        # [설계 판단] PDF 전체 텍스트를 임베딩하기 전에 검색 가능한 작은 단위로 나누되, 청크 경계에서 정보가 끊어지지 않도록 일부 중첩을 둡니다. 이 서버의 PDF 청크 크기와 중첩 크기를 설정하세요.
-        # [TODO Q01] 아래 ... 부분을 적절한 코드로 교체하세요.
+        # [Q01] PDF 청크 설계: 1000자 단위, 100자 중첩 (페이지 메타데이터는 청크에 그대로 상속)
         splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-        docs = splitter.create_documents([paper_text], metadatas=[{"source": file.filename}])
+        docs = splitter.split_documents(page_docs)
 
         global VECTORSTORE_PDF
-        # [Q02] PDF 임베딩과 벡터 저장소 연결
-        # [설계 판단] 분할한 PDF 문서(docs)를 OpenAI 임베딩 모델로 벡터화하여 FAISS 검색 저장소로 만드세요.
-        # [TODO Q02] 아래 ... 부분을 적절한 코드로 교체하세요.
-        VECTORSTORE_PDF = FAISS.from_documents(docs, OpenAIEmbeddings())
+        # [Q02] OpenAI 임베딩 → FAISS. 기존 PDF 지식베이스가 있으면 교체하지 않고 누적
+        if VECTORSTORE_PDF is None or RESET_PDF_ON_UPLOAD:
+            VECTORSTORE_PDF = FAISS.from_documents(docs, OpenAIEmbeddings())
+        else:
+            VECTORSTORE_PDF.add_documents(docs)
 
         # ✅ 디스크에 저장
         os.makedirs("faiss_db/pdf", exist_ok=True)
@@ -244,17 +255,20 @@ async def upload_pdf(file: UploadFile = File(...)):
 # 질의 요청/응답 모델 정의
 # ✅ 질의 요청 모델
 class RAGRequest(BaseModel):
-    prompt: str = Field(default=..., description="질문 프롬프트")
-    source: str = Field(default=..., description="web | pdf")
-    top_k: int = Field(default=5, ge=1, description="검색할 결과 수 (기본값 5)")
+    prompt: str = Field(default=..., min_length=2, max_length=1000, description="질문 프롬프트")
+    source: Literal["web", "pdf"] = Field(default=..., description="web | pdf")
+    top_k: int = Field(default=5, ge=1, le=20, description="검색할 결과 수 (기본값 5)")
 
     class Config:
         validate_by_name = True
 
-# ✅ 응답 모델 (설명만 필요하면 Field 생략 가능)
+# ✅ 응답 모델: 교재 Day2 REST API 스키마 (answer · sources · needs_review · handoff)
 class AnswerResponse(BaseModel):
     prompt: str
-    response: str
+    answer: str
+    sources: List[str] = []
+    needs_review: bool = False   # 긴급·부상 상황 → 사람(안전관리자) 확인 필요
+    handoff: bool = False        # 근거 없음 → 답변 대신 담당자에게 넘김
 
 # ✅ RAG 기반 질의 응답 처리
 from fastapi import Body
@@ -303,174 +317,100 @@ def fallback_extract_from_context(context: str, question: str) -> str | None:
     return m_any.group(1).strip() if m_any else None
 
 # ✅ 질의 응답 라우터
+NOT_FOUND_MSG = "매뉴얼에서 관련 근거를 찾을 수 없습니다. 현장 안전관리자에게 문의하세요."
+EMERGENCY_WORDS = ["다쳤", "부상", "쓰러", "의식", "출혈", "피가", "화상", "데었", "골절", "끼였", "끼임",
+                   "감전", "화재", "불이", "폭발", "누출", "유출", "질식", "호흡"]
+EMERGENCY_LINE = "⚠️ 사람이 다쳤거나 위험이 계속되면 즉시 119에 신고하고 현장 비상절차를 따르세요."
+
+def is_emergency(q: str) -> bool:
+    return any(w in q for w in EMERGENCY_WORDS)
+
+def doc_label(doc) -> str:
+    m = doc.metadata or {}
+    name = m.get("source") or "업로드 문서"
+    return f"{name} p.{m['page']}" if m.get("page") else str(name)
+
+def build_prompt(context: str, question: str) -> str:
+    return (
+        "당신은 산업 현장 안전사고 대응 도우미입니다.\n"
+        "규칙:\n"
+        "- 반드시 아래 [검색 내용]에 근거해서만 한국어로 답하세요.\n"
+        f"- [검색 내용]에 근거가 없으면 다른 말 없이 정확히 'N/A'라고만 답하세요.\n"
+        "- 문서에 없는 수치·절차를 지어내지 마세요.\n"
+        "- 문장 끝에 근거 문서 번호를 괄호로 붙이세요. 예: (문서 2)\n\n"
+        "답변 형식(해당 내용이 문서에 있을 때만 작성):\n"
+        "1. 즉시 조치\n2. 원인 또는 위험요인\n3. 예방 대책\n\n"
+        f"[검색 내용]\n{context}\n\n"
+        f"[질문] {question}\n\n"
+        "### ANSWER_START\n<답변>\n### ANSWER_END"
+    )
+
+def make_context(docs, limit_chars: int = 12000) -> str:
+    chunks, total = [], 0
+    for i, doc in enumerate(docs, start=1):
+        content = (doc.page_content or "").strip()
+        if not content:
+            continue
+        excerpt = content[: max(0, limit_chars - total)]
+        if not excerpt:
+            break
+        chunks.append(f"[문서 {i}] ({doc_label(doc)})\n{excerpt}")
+        total += len(excerpt)
+    return "\n\n".join(chunks)
+
 @app.post("/rag-query", response_model=AnswerResponse, summary="Closed Source LLM + 벡터 DB 질의", tags=["질의 응답"])
 async def rag_query(rag_request: RAGRequest = Body(...)):
-    # 1. 벡터스토어 및 LLM 결정
-    if rag_request.source == "web":
-        if VECTORSTORE_WEB is None:
-            raise HTTPException(
-                status_code=400,
-                detail="❗ 외부 WEB 벡터값이 로딩되지 않았습니다. 먼저 외부 정보를 수집해서 벡터화를 진행해주세요.",
-            )
-        vectorstore = VECTORSTORE_WEB
-        llm = ChatOpenAI(model="gpt-4o", temperature=0.3)
-        llm_type = "openai" # huggingface
+    q = rag_request.prompt.strip()
+    emergency = is_emergency(q)
 
-    elif rag_request.source == "pdf":
-        if VECTORSTORE_PDF is None:
-            raise HTTPException(
-                status_code=400,
-                detail="❗ PDF 벡터값이 로딩되지 않았습니다. 먼저 PDF 파일을 벡터화해주세요.",
-            )
-        # [Q03] 요청 출처와 검색 저장소 연결
-        # [설계 판단] 사용자가 source="pdf"를 선택하면 웹 저장소가 아니라 PDF 저장소를 검색하도록 연결하세요.
-        # [TODO Q03] 아래 ... 부분을 적절한 코드로 교체하세요.
-        vectorstore = VECTORSTORE_PDF
-        llm = ChatOpenAI(model="gpt-4o", temperature=0.3)
-        llm_type = "openai"
-
-    else:
+    # 1. 벡터스토어 선택
+    vectorstore = VECTORSTORE_PDF if rag_request.source == "pdf" else VECTORSTORE_WEB
+    if vectorstore is None:
         raise HTTPException(
-            status_code=400,
-            detail="❗ 외부 source는 'web', 'pdf' 중 하나여야 합니다.",
+            status_code=503,
+            detail=f"❗ {rag_request.source.upper()} 지식베이스가 준비되지 않았습니다. 먼저 자료를 업로드해 주세요.",
         )
+    llm = ChatOpenAI(model=LLM_MODEL, temperature=0.2, timeout=30)
 
-    # 2. 검색 및 LLM 응답 생성
     try:
-        source = rag_request.source
-        top_k = max(5, (rag_request.top_k or 5))
+        # 2. 검색 (거리 점수 포함)
+        docs_scores = vectorstore.similarity_search_with_score(q, k=rag_request.top_k)
+        for i, (doc, score) in enumerate(docs_scores, start=1):
+            print(f"[{rag_request.source.upper()} 검색 {i}] 거리={score:.4f}, 출처={doc_label(doc)}, 내용={doc.page_content[:120]!r}")
+        if MAX_DISTANCE > 0:  # 선택: 거리 임계값으로 관련 없는 문서 제외
+            docs_scores = [(d, s) for d, s in docs_scores if s <= MAX_DISTANCE]
+        docs = [d for d, _ in docs_scores]
+        context = make_context(docs)
 
-        # -------------------- PDF: 검색 결과 확인 + 안정적인 응답 처리 --------------------
-        if source == "pdf":
-            # [Q04] 질문과 유사 문서 검색 연결
-            # [설계 판단] 사용자 질문을 기준으로 선택된 벡터 저장소에서 상위 top_k개 문서와 거리 점수를 가져오세요.
-            # [TODO Q04] 아래 ... 부분을 적절한 코드로 교체하세요.
-            docs_scores = vectorstore.similarity_search_with_score(rag_request.prompt, k=top_k)
-            print(f"[PDF 검색] 질문={rag_request.prompt!r}, 검색 문서 수={len(docs_scores)}")
-            for i, (doc, score) in enumerate(docs_scores, start=1):
-                print(f"[PDF 검색 {i}] 거리={score:.5f}, 내용={doc.page_content[:300]!r}")
+        # 3. 근거 없음 → LLM 호출하지 않고 handoff
+        if not context.strip():
+            answer = (EMERGENCY_LINE + "\n\n" if emergency else "") + NOT_FOUND_MSG
+            return AnswerResponse(prompt=q, answer=answer, sources=[], needs_review=emergency, handoff=True)
 
-            if not docs_scores:
-                return AnswerResponse(prompt=rag_request.prompt, response="PDF 지식베이스에서 검색 결과를 찾을 수 없습니다.")
+        # 4. LLM 답변 생성
+        raw = llm.invoke([HumanMessage(content=build_prompt(context, q))]).content
+        raw = raw.strip() if isinstance(raw, str) else str(raw).strip()
+        print(f"[LLM 원본 응답] {raw[:800]}")
+        final = (extract_by_marker(raw) or raw).strip()
 
-            # 임의의 거리 임계값을 제거하고 상위 검색 결과를 사용합니다.
-            # 기존 로직은 0.12 마진으로 문서를 과도하게 배제할 수 있었습니다.
-            MAX_CONTEXT_CHARS = 12000
-            chunks, total = [], 0
-            for i, (doc, _) in enumerate(docs_scores, start=1):
-                content = (doc.page_content or "").strip()
-                if not content:
-                    continue
-                remaining = MAX_CONTEXT_CHARS - total
-                if remaining <= 0:
-                    break
-                excerpt = content[:remaining]
-                chunks.append(f"[문서 {i}]\n{excerpt}")
-                total += len(excerpt)
-            context = "\n\n".join(chunks)
-            if not context.strip():
-                return AnswerResponse(prompt=rag_request.prompt, response="PDF에서 검색된 텍스트가 비어 있습니다.")
+        # 5. LLM이 근거 없다고 판단 → handoff
+        if not final or final.upper().startswith("N/A"):
+            answer = (EMERGENCY_LINE + "\n\n" if emergency else "") + NOT_FOUND_MSG
+            return AnswerResponse(prompt=q, answer=answer, sources=[], needs_review=emergency, handoff=True)
 
-            full_prompt = (
-                "아래는 업로드된 PDF에서 검색한 내용입니다. PDF 내용에 근거해 한국어로 답변하세요. "
-                "질문이 한 단어 또는 주제명이라면 그 주제를 PDF에 근거해 설명하세요. "
-                "PDF에 없는 사실을 만들어 내지 마세요. 근거가 정말 없다면 'N/A'라고 답하세요.\n\n"
-                f"PDF 검색 내용:\n{context}\n\n"
-                f"질문: {rag_request.prompt}\n\n"
-                "답변:"
-            )
-            # [Q05] 검색 근거를 LLM 답변으로 연결
-            # [설계 판단] 검색한 PDF 내용이 포함된 full_prompt를 LLM에 전달하여 응답을 받아오세요.
-            # [TODO Q05] 아래 ... 부분을 적절한 코드로 교체하세요.
-            raw = llm.invoke([HumanMessage(content=full_prompt)]).content
-            raw = raw.strip() if isinstance(raw, str) else str(raw).strip()
-            print(f"[PDF LLM 원본 응답] {raw[:1500]}")
-            # 마커가 없어도 LLM 원문을 답변으로 사용합니다.
-            final = (extract_by_marker(raw) or raw).strip()
-            if not final or final.upper() == "N/A":
-                final = "PDF 지식베이스에서 답을 찾을 수 없습니다. 질문을 구체적으로 작성해 보세요."
-            return AnswerResponse(prompt=rag_request.prompt, response=final)
+        # 6. 출처 정리: LLM이 실제로 인용한 (문서 N)만 표시, 인용이 없으면 검색된 문서 전체
+        cited = [int(n) for n in re.findall(r"문서\s*(\d+)", final)]
+        used = [docs[n - 1] for n in cited if 1 <= n <= len(docs)] or docs
+        sources = list(dict.fromkeys(doc_label(d) for d in used))
+        if emergency:
+            final = EMERGENCY_LINE + "\n\n" + final
+        return AnswerResponse(prompt=q, answer=final, sources=sources, needs_review=emergency, handoff=False)
 
-        # -------------------- WEB 검색 --------------------
-        elif source == "web":
-            q = rag_request.prompt or ""
-            # 한글 포함 여부 간단 판별
-            has_korean = any('\uac00' <= ch <= '\ud7a3' for ch in q)
-            merged = []
-
-            def limited_context(docs, limit_chars=4000):
-                buf, total = [], 0
-                for d in docs:
-                    pc = getattr(d, "page_content", "") or ""
-                    if not pc.strip():
-                        continue
-                    if total + len(pc) > limit_chars:
-                        break
-                    buf.append(pc); total += len(pc)
-                return "\n\n".join(buf)
-
-            # 1차: 원문 질의
-            docs1 = vectorstore.similarity_search(q, k=top_k)
-            merged.extend(docs1)
-
-            # 2차: 한국어 → 영어 번역 질의(실 서비스에서는 번역 API 사용 권장)
-            q_en = q
-            try:
-                if has_korean:
-                    q_en = q  # TODO: 실제 번역 적용
-                    docs2 = vectorstore.similarity_search(q_en, k=top_k)
-                    merged.extend(docs2)
-            except Exception:
-                pass  # 번역/검색 실패 시 무시
-
-            # 중복 제거(간단히 page_content 기준)
-            seen, merged_uniq = set(), []
-            for d in merged:
-                key = getattr(d, "page_content", "")
-                if key and key not in seen:
-                    seen.add(key); merged_uniq.append(d)
-
-            if not merged_uniq:
-                return AnswerResponse(prompt=rag_request.prompt,
-                                    response="웹 검색 기반 지식베이스에서 충분한 결과를 찾지 못했습니다. 키워드를 달리하여 다시 시도해 주십시오.")
-
-            context = limited_context(merged_uniq, limit_chars=4000)
-            if not context.strip():
-                return AnswerResponse(prompt=rag_request.prompt,
-                                    response="웹 검색 기반 지식베이스에서 충분한 결과를 찾지 못했습니다. 키워드를 달리하여 다시 시도해 주십시오.")
-
-            # 인용 유도, N/A 강제는 사용하지 않음
-            full_prompt = (
-                "아래 컨텍스트에서만 답변을 작성하시오. 컨텍스트에 없는 내용은 추측하지 마시오. "
-                "가능하면 문장 끝에 간단한 출처 표기를 괄호로 덧붙이시오(예: (출처 1), (출처 2)).\n"
-                f"{context}\n\n"
-                f"질문: {rag_request.prompt}\n\n"
-                "### ANSWER_START\n"
-                "<정답(간결한 한국어, 필요 시 간단한 출처 표기)>\n"
-                "### ANSWER_END"
-            )
-
-            if llm_type == "huggingface": # Embedding 시, bge_embedder 사용한 경우에 선택 권고
-                out = text_generator(full_prompt, max_new_tokens=200, do_sample=False, return_full_text=False) #  temperature=0.0 제거
-                raw = (out[0].get("generated_text") or "").strip()
-                answer = extract_by_marker(raw)
-                if not answer and 0 < len(raw) <= 500 and '###' not in raw:
-                    answer = raw
-            else:
-                raw = llm.invoke([HumanMessage(content=full_prompt)]).content.strip()
-                answer = extract_by_marker(raw) or raw
-
-            final = (answer or "").strip()
-            if final == "":
-                final = "웹 검색 기반 지식베이스에서 충분한 결과를 찾지 못했습니다. 키워드를 달리하여 다시 시도해 주십시오."
-            return AnswerResponse(prompt=rag_request.prompt, response=final)
-
-        # -------------------- 기타 --------------------
-        else:
-            return AnswerResponse(prompt=rag_request.prompt, response="지원하지 않는 소스입니다.")
-
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # 타임아웃·모델 오류 등은 503으로 안내 (교재 API 규칙)
+        raise HTTPException(status_code=503, detail=f"LLM 또는 검색 처리 중 오류: {e}")
 
 
 # 실행 명령어 예시:

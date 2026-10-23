@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SAFEPATH - Safety AI</title>
+  <style>
+    #safepath-v2 {
+      font-family: Inter, Pretendard, -apple-system, BlinkMacSystemFont, "Noto Sans KR", sans-serif;
+      background: #f5f7f9;
+      color: #213444;
+      min-height: 670px;
+      font-size: 13px
+    }
+
+    #safepath-v2 * {
+      box-sizing: border-box
+    }
+
+    #safepath-v2 button,
+    #safepath-v2 input {
+      font: inherit
+    }
+
+    #safepath-v2 button {
+      cursor: pointer
+    }
+
+    #safepath-v2 button:focus-visible,
+    #safepath-v2 a:focus-visible,
+    #safepath-v2 input:focus-visible {
+      outline: 2px solid #3aab90;
+      outline-offset: 2px
+    }
+
+    #safepath-v2 .shell {
+      display: grid;
+      grid-template-columns: 191px minmax(0, 1fr);
+      min-height: 670px
+    }
+
+    #safepath-v2 .sidebar {
+      background: #172e3b;
+      padding: 22px 12px;
+      color: #c5d3da;
+      display: flex;
+      flex-direction: column;
+      gap: 4px
+    }
+
+    #safepath-v2 .brand {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 3px 6px 30px
+    }
+
+    #safepath-v2 .brandlogo {
+      background: #17876f;
+      border-radius: 10px;
+      width: 35px;
+      height: 35px;
+      display: grid;
+      place-items: center;
+      font-size: 20px;
+      color: white
+    }
+
+    #safepath-v2 .brandname {
+      font-weight: 850;
+      font-size: 16px;
+      color: white
+    }
+
+    #safepath-v2 .brandtag {
+      font-size: 9px;
+      color: #8ba8b4
+    }
+
+    #safepath-v2 .navlabel {
+      font-size: 9px;
+      color: #7898a5;
+      font-weight: 800;
+      letter-spacing: 1.1px;
+      padding: 4px 10px 7px
+    }
+
+    #safepath-v2 .navbtn {
+      background: transparent;
+      color: #bfd0d8;
+      border: none;
+      width: 100%;
+      border-radius: 8px;
+      padding: 12px 11px;
+      text-align: left;
+      font-size: 11.5px;
+      display: flex;
+      gap: 11px;
+      align-items: center
+    }
+
+    #safepath-v2 .navbtn:hover {
+      background: #244350
+    }
+
+    #safepath-v2 .navbtn.active {
+      background: #275a4d;
+      color: white;
+      font-weight: 800
+    }
+
+    #safepath-v2 .navbtn .ico {
+      font-size: 15px;
+      width: 17px;
+      text-align: center
+    }
+
+    #safepath-v2 .navbtn.danger {
+      color: #ffc7c6
+    }
+
+    #safepath-v2 .sidebarfoot {
+      margin-top: auto;
+      background: #24404e;
+      border-radius: 10px;
+      padding: 13px;
+      font-size: 10px;
+      color: #a8c0c9;
+      line-height: 1.65
+    }
+
+    #safepath-v2 .sidebarfoot strong {
+      display: block;
+      color: #90e0c8;
+      margin-bottom: 3px
+    }
+
+    #safepath-v2 .workspace {
+      min-width: 0
+    }
+
+    #safepath-v2 .topbar {
+      background: white;
+      border-bottom: 1px solid #e5ebef;
+      height: 63px;
+      padding: 0 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px
+    }
+
+    #safepath-v2 .crumb {
+      font-size: 11px;
+      color: #8b9ba8
+    }
+
+    #safepath-v2 .crumb b {
+      color: #476071
+    }
+
+    #safepath-v2 .dl {
+      background: #168773;
+      color: white;
+      border: 0;
+      padding: 10px 13px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap
+    }
+
+    #safepath-v2 .dl:hover {
+      background: #0d6c59
+    }
+
+    #safepath-v2 .content {
+      padding: 28px 23px;
+      max-width: 1080px;
+      margin: 0 auto
+    }
+
+    #safepath-v2 .eyebrow {
+      font-size: 10px;
+      color: #178d76;
+      font-weight: 850;
+      letter-spacing: 1.2px;
+      margin-bottom: 8px
+    }
+
+    #safepath-v2 h1 {
+      font-size: 25px;
+      line-height: 1.35;
+      letter-spacing: -.9px;
+      margin: 0 0 9px;
+      font-weight: 850
+    }
+
+    #safepath-v2 .lead {
+      color: #8193a1;
+      font-size: 11.5px;
+      line-height: 1.8;
+      margin: 0 0 23px
+    }
+
+    #safepath-v2 .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px
+    }
+
+    #safepath-v2 .card {
+      background: white;
+      border: 1px solid #e2e9ee;
+      border-radius: 13px;
+      padding: 20px 15px;
+      text-align: left;
+      color: inherit;
+      min-width: 0;
+      min-height: 160px
+    }
+
+    #safepath-v2 button.card:hover {
+      border-color: #29a085;
+      box-shadow: 0 5px 20px #1e5f4d13
+    }
+
+    #safepath-v2 .cardicon {
+      font-size: 21px;
+      background: #ecf7f2;
+      width: 40px;
+      height: 40px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      margin-bottom: 13px
+    }
+
+    #safepath-v2 .card.red .cardicon {
+      background: #fff0f0
+    }
+
+    #safepath-v2 .card.blue .cardicon {
+      background: #edf3fb
+    }
+
+    #safepath-v2 .card strong {
+      font-size: 13px;
+      display: block;
+      margin-bottom: 8px
+    }
+
+    #safepath-v2 .card p {
+      font-size: 10.5px;
+      color: #8093a0;
+      line-height: 1.7;
+      margin: 0
+    }
+
+    #safepath-v2 .panel {
+      background: white;
+      border: 1px solid #e3ebf0;
+      border-radius: 13px;
+      padding: 20px;
+      margin-top: 17px
+    }
+
+    #safepath-v2 .paneltitle {
+      font-size: 13px;
+      font-weight: 800;
+      margin-bottom: 13px
+    }
+
+    #safepath-v2 .pill {
+      display: inline-block;
+      background: #e9f6f0;
+      color: #14816c;
+      border-radius: 30px;
+      padding: 6px 9px;
+      font-size: 10px;
+      font-weight: 800;
+      margin-bottom: 12px
+    }
+
+    #safepath-v2 .minirow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 0;
+      border-top: 1px solid #edf1f3;
+      color: #566d7b;
+      font-size: 11px;
+      line-height: 1.6
+    }
+
+    #safepath-v2 .minirow .num {
+      height: 27px;
+      min-width: 27px;
+      border-radius: 8px;
+      background: #eef4f7;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      color: #55808a
+    }
+
+    #safepath-v2 .btn {
+      border: 0;
+      border-radius: 8px;
+      background: #17866f;
+      color: white;
+      padding: 11px 14px;
+      font-size: 11px;
+      font-weight: 800
+    }
+
+    #safepath-v2 .btn.secondary {
+      background: #edf4f6;
+      color: #326476
+    }
+
+    #safepath-v2 .btn.red {
+      background: #c93f4b
+    }
+
+    #safepath-v2 .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 18px
+    }
+
+    #safepath-v2 .emergencybox {
+      border: 1px solid #f0bdc2;
+      background: #fff1f2;
+      border-radius: 12px;
+      padding: 19px;
+      margin-bottom: 16px
+    }
+
+    #safepath-v2 .emergencybox strong {
+      font-size: 17px;
+      color: #a82c3a
+    }
+
+    #safepath-v2 .emergencybox p {
+      line-height: 1.8;
+      color: #9c4c58;
+      font-size: 11px;
+      margin: 8px 0 0
+    }
+
+    #safepath-v2 .emergencystep {
+      display: flex;
+      gap: 12px;
+      padding: 13px 0;
+      border-bottom: 1px solid #f0eded;
+      font-size: 12px;
+      line-height: 1.7
+    }
+
+    #safepath-v2 .stepnum {
+      background: #fbe5e7;
+      color: #b73f4a;
+      min-width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-weight: 800
+    }
+
+    #safepath-v2 .checkrow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11.5px;
+      border-bottom: 1px solid #eef1f4;
+      padding: 13px 0;
+      color: #4c6573;
+      cursor: pointer
+    }
+
+    #safepath-v2 .checkrow input {
+      accent-color: #168e77;
+      width: 16px;
+      height: 16px
+    }
+
+    #safepath-v2 .checkrow:has(input:checked) span {
+      text-decoration: line-through;
+      color: #a6b2ba
+    }
+
+    #safepath-v2 .progress {
+      height: 8px;
+      background: #e6efed;
+      border-radius: 30px;
+      overflow: hidden;
+      margin: 12px 0
+    }
+
+    #safepath-v2 .progressfill {
+      height: 100%;
+      background: #23a287;
+      transition: width .2s
+    }
+
+    #safepath-v2 .hint {
+      font-size: 10px;
+      line-height: 1.75;
+      color: #8ca0ad
+    }
+
+    #safepath-v2 .chatpanel {
+      background: white;
+      border: 1px solid #e3ebf0;
+      border-radius: 13px;
+      overflow: hidden
+    }
+
+    #safepath-v2 .chathead {
+      padding: 14px 17px;
+      border-bottom: 1px solid #e9eef2;
+      font-size: 12px;
+      font-weight: 800
+    }
+
+    #safepath-v2 .messages {
+      padding: 17px;
+      display: flex;
+      flex-direction: column;
+      gap: 13px;
+      height: 310px;
+      overflow: auto
+    }
+
+    #safepath-v2 .message {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px
+    }
+
+    #safepath-v2 .message.user {
+      justify-content: flex-end
+    }
+
+    #safepath-v2 .botavatar {
+      height: 27px;
+      min-width: 27px;
+      background: #188974;
+      color: white;
+      border-radius: 9px;
+      display: grid;
+      place-items: center
+    }
+
+    #safepath-v2 .bubble {
+      background: #f2f6f8;
+      padding: 12px 13px;
+      border-radius: 3px 11px 11px 11px;
+      max-width: 90%;
+      white-space: pre-wrap;
+      line-height: 1.8;
+      color: #445e6c;
+      font-size: 11px;
+      overflow-wrap: anywhere
+    }
+
+    #safepath-v2 .message.user .bubble {
+      background: #e6f6ef;
+      border-radius: 11px 3px 11px 11px;
+      color: #23725d
+    }
+
+    #safepath-v2 .bubble b {
+      display: block;
+      margin-bottom: 5px;
+      color: #2b4350
+    }
+
+    #safepath-v2 .source {
+      display: inline-block;
+      font-size: 9px;
+      border-radius: 5px;
+      background: white;
+      padding: 5px;
+      margin: 6px 5px 0 0;
+      border: 1px solid #dce5e9
+    }
+
+    #safepath-v2 .voice {
+      display: block;
+      background: transparent;
+      border: 0;
+      color: #138b73;
+      font-size: 10px;
+      font-weight: 800;
+      margin-top: 9px;
+      padding: 4px 0
+    }
+
+    #safepath-v2 .suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px 15px
+    }
+
+    #safepath-v2 .suggestions button {
+      border: 1px solid #dfe8eb;
+      border-radius: 7px;
+      background: #fff;
+      padding: 7px 8px;
+      color: #557080;
+      font-size: 10px
+    }
+
+    #safepath-v2 .chatcompose {
+      padding: 12px 15px;
+      border-top: 1px solid #ecf0f3;
+      display: flex;
+      gap: 8px
+    }
+
+    #safepath-v2 .chatcompose input {
+      flex: 1;
+      min-width: 0;
+      border: 1px solid #dce5eb;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 11px;
+      outline: none
+    }
+
+    #safepath-v2 .doc {
+      padding: 12px 0;
+      border-top: 1px solid #e7edf0
+    }
+
+    #safepath-v2 .doc strong {
+      font-size: 11px;
+      display: block
+    }
+
+    #safepath-v2 .doc p {
+      font-size: 10px;
+      color: #8c9da8;
+      margin: 6px 0
+    }
+
+    @media(max-width:780px) {
+      #safepath-v2 .shell {
+        grid-template-columns: 145px minmax(0, 1fr)
+      }
+
+      #safepath-v2 .sidebar {
+        padding: 16px 7px
+      }
+
+      #safepath-v2 .content {
+        padding: 19px 12px
+      }
+
+      #safepath-v2 .cards {
+        gap: 7px
+      }
+
+      #safepath-v2 .card {
+        padding: 12px 9px
+      }
+
+      #safepath-v2 .card strong {
+        font-size: 11px
+      }
+
+      #safepath-v2 .card p {
+        font-size: 10px
+      }
+    }
+
+    @media(max-width:540px) {
+      #safepath-v2 .shell {
+        display: block
+      }
+
+      #safepath-v2 .sidebar {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 3px;
+        padding: 10px
+      }
+
+      #safepath-v2 .brand {
+        padding: 0 0 10px;
+        width: 100%
+      }
+
+      #safepath-v2 .navlabel,
+      #safepath-v2 .sidebarfoot {
+        display: none
+      }
+
+      #safepath-v2 .navbtn {
+        width: auto;
+        font-size: 10px;
+        padding: 7px 8px
+      }
+
+      #safepath-v2 .navbtn .ico {
+        display: none
+      }
+
+      #safepath-v2 .topbar {
+        height: 54px;
+        padding: 0 11px
+      }
+
+      #safepath-v2 .dl {
+        font-size: 10px;
+        padding: 9px
+      }
+
+      #safepath-v2 h1 {
+        font-size: 21px
+      }
+
+      #safepath-v2 .cards {
+        grid-template-columns: 1fr
+      }
+
+      #safepath-v2 .card {
+        min-height: 80px;
+        display: grid;
+        grid-template-columns: 42px 1fr;
+        column-gap: 10px
+      }
+
+      #safepath-v2 .cardicon {
+        grid-row: span 2;
+        margin: 0
+      }
+
+      #safepath-v2 .card strong {
+        margin: 4px 0 0
+      }
+
+      #safepath-v2 .card p {
+        grid-column: 2
+      }
+
+      #safepath-v2 .panel {
+        padding: 15px
+      }
+    }
+  </style>
+</head>
+
+<body style="margin:0">
+  <div id="safepath-v2">
+    <div class="shell" data-app-block-stream-enter="">
+      <aside class="sidebar" data-app-block-stream-enter="">
+        <div class="brand"><span class="brandlogo">◇</span>
+          <div>
+            <div class="brandname">SAFEPATH</div>
+            <div class="brandtag" data-app-block-stream-enter="">AI Safety Assistant</div>
+          </div>
+        </div>
+        <div class="navlabel" data-app-block-stream-enter="">WORKSPACE</div>
+        <button class="navbtn" data-go="home" data-app-block-stream-enter=""><span class="ico">▦</span>대시보드</button>
+        <button class="navbtn" data-go="chat" data-app-block-stream-enter=""><span class="ico">▤</span>AI 안전 상담</button>
+        <div class="navlabel" style="margin-top:18px" data-app-block-stream-enter="">SAFETY SERVICES</div>
+        <button class="navbtn active" data-go="prevention" data-app-block-stream-enter=""><span class="ico">◉</span>예방
+          점검</button>
+        <button class="navbtn danger" data-go="emergency" data-app-block-stream-enter=""><span class="ico">⚠</span>긴급
+          대응</button>
+        <button class="navbtn" data-go="after" data-app-block-stream-enter=""><span class="ico">▧</span>사후 처리</button>
+        <button class="navbtn" data-go="documents" data-app-block-stream-enter=""><span class="ico">▥</span>근거
+          자료실</button>
+        <div class="sidebarfoot" data-app-block-stream-enter=""><strong>● RAG 서버 연결</strong>AI 안전 상담 → localhost:8001
+          /rag-query</div>
+      </aside>
+      <div class="workspace" data-app-block-stream-enter="">
+        <div class="topbar">
+          <div class="crumb">Workspace / <b id="sp2-page">예방 점검</b></div><button class="dl" id="sp2-download"
+            data-app-block-stream-enter="">↓ HTML 다운로드</button>
+        </div>
+        <main id="sp2-content" class="content" data-app-block-stream-enter="">
+          <div class="eyebrow">PREVENTION CHECKLIST</div>
+          <h1>사고 예방 · 안전 점검</h1>
+          <p class="lead">작업을 시작하기 전에 위험요인을 확인하세요.</p>
+          <div class="panel">
+            <div class="paneltitle">연구실 화학·가스 안전 점검표 <span id="sp2-count"
+                style="float:right;color:#188e74;font-size:11px">2 / 5 완료</span></div>
+            <div class="progress">
+              <div id="sp2-fill" class="progressfill" style="width: 40%;"></div>
+            </div><label class="checkrow"><input data-check="0" type="checkbox" checked=""><span>가스용기 및 배관 누출
+                여부</span></label><label class="checkrow"><input data-check="1" type="checkbox" checked=""><span>MSDS 및
+                경고표지 확인</span></label><label class="checkrow"><input data-check="2" type="checkbox"><span>가스 누출감지·경보장치
+                점검</span></label><label class="checkrow"><input data-check="3" type="checkbox"><span>가스 종류별 분리
+                보관</span></label><label class="checkrow"><input data-check="4" type="checkbox"><span>비상구 및 대피 경로
+                확인</span></label>
+            <div class="actions"><button class="btn" data-go="chat">점검 관련 질문하기</button></div>
+            <p class="hint">체크 여부는 데모 상태로만 저장됩니다. 실제 안전 점검이나 전문가 확인을 대체하지 않습니다.</p>
+          </div>
+        </main>
+      </div>
+    </div>
+  </div>
+  <script>(function boot() {
+      const root = document.getElementById('safepath-v2');
+      if (!root || root.dataset.init === '1') return;
+      root.dataset.init = '1';
+      const $ = (s) => root.querySelector(s);
+      const $$ = (s) => Array.from(root.querySelectorAll(s));
+      const titles = { home: '대시보드', prevention: '예방 점검', emergency: '긴급 대응', after: '사후 처리', documents: '근거 자료실', chat: 'AI 안전 상담' };
+      const checkItems = ['가스용기 및 배관 누출 여부', 'MSDS 및 경고표지 확인', '가스 누출감지·경보장치 점검', '가스 종류별 분리 보관', '비상구 및 대피 경로 확인'];
+      const checked = new Set([0, 1]);
+      const messages = [];
+      let current = 'home', speechButton = null;
+      // ===== RAG 백엔드 연결 설정 =====
+      const RAG_API = 'http://localhost:8001';   // FastAPI RAG 서버 주소
+      let ragSource = 'pdf';                      // 'pdf' 또는 'web'
+      let pending = false;                        // 답변 기다리는 중이면 true
+      let uploading = false, uploadResult = '';   // PDF 업로드 상태
+      const escapeHtml = (s) => String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      // PDF → FastAPI /upload-paper (multipart, 필드명 file)
+      async function uploadPdf(file) {
+        if (!file || uploading) return;
+        uploading = true; uploadResult = '"' + file.name + '" 업로드 중… (PDF 크기에 따라 수십 초 걸릴 수 있어요)';
+        render('documents');
+        try {
+          const fd = new FormData(); fd.append('file', file);
+          const res = await fetch(RAG_API + '/upload-paper', { method: 'POST', body: fd });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.detail || ('HTTP ' + res.status));
+          uploadResult = '✅ ' + file.name + '\n' + (data.message || '업로드 완료') +
+            (data.extracted_characters ? '\n추출 글자 수: ' + data.extracted_characters : '');
+          ragSource = 'pdf';
+        } catch (err) {
+          uploadResult = '❌ 업로드 실패: ' + err.message + '\n(RAG 서버(8001)가 켜져 있는지 확인하세요)';
+        } finally {
+          uploading = false;
+          if (current === 'documents') render('documents');
+        }
+      }
+      const samples = [
+        ['고압가스 용기 보관 전 무엇을 점검해야 해?', 'gas'],
+        ['연구실에서 독성가스가 누출되고 있어', 'leak'],
+        ['화학사고가 발생한 뒤에는 어떻게 신고해?', 'after']
+      ];
+      const answers = {
+        gas: { title: '고압가스 용기 보관 점검', body: '① 용기·배관·밸브의 누출 여부를 확인합니다.\n② 누출감지·경보장치의 설치 및 점검 상태를 확인합니다.\n③ 가연성·조연성·독성가스가 분리 보관되는지 확인합니다.\n④ 직사광선·화기·고온 노출 여부를 확인합니다.\n⑤ 충전기한과 용기의 상태를 확인합니다.', sources: ['가스분야 점검표 · p.15~16'] },
+        leak: { title: '긴급 — 가스누출 의심', body: '① 즉시 위험구역에서 벗어나 주변에 알리세요.\n② 안전한 장소에서 119에 신고하세요.\n③ 적절한 보호구와 자격 없이 현장에 재진입하지 마세요.\n④ 현장 안전관리 담당자에게 상황을 알리세요.\n⑤ 확인된 물질명과 위치를 대응기관에 전달하세요.', sources: ['연구실 안전관리 매뉴얼 · p.29~30', '화학물질관리법 · 제43조'] },
+        after: { title: '사고 이후 처리 절차', body: '① 현장 안전과 인명피해를 확인합니다.\n② 사고 유형에 따른 신고 및 보고 의무를 확인합니다.\n③ 사고 경위와 초기 조치 내용을 기록합니다.\n④ 사고 조사와 안전조치에 협조합니다.\n⑤ 재발 방지를 위한 개선 조치를 수립합니다.\n\n적용 법령과 담당기관은 사고 유형에 따라 다릅니다.', sources: ['연구실안전법 · 제23~25조', '화학물질관리법 · 제43조'] },
+        welding: { title: '용접·용단 작업 전 안전수칙', body: '주변 가연물과 불티 비산 위험을 점검하고 소화설비, 작업허가 및 화재감시 필요 여부를 확인하세요. 실제 현장 조치는 기술지침과 안전관리자의 검토를 따라야 합니다.', sources: ['KOSHA GUIDE F-1-2023'] },
+        unknown: { title: '현재 데모에 없는 질문입니다', body: '실제 AI가 연결되지 않은 프론트엔드 시안입니다. 완성된 서비스에서는 관련 문서를 검색하여 근거가 확인될 때만 답변하도록 구현할 예정입니다.', sources: [] }
+      };
+      function heading(title, lead, eyebrow = 'SAFETY SERVICES') {
+        return '<div class="eyebrow">' + eyebrow + '</div><h1>' + title + '</h1><p class="lead">' + lead + '</p>';
+      }
+      function render(view) {
+        current = view;
+        $('#sp2-page').textContent = titles[view];
+        $$('[data-go]').forEach(b => b.classList.toggle('active', b.dataset.go === view));
+        const outlet = $('#sp2-content');
+        if (view === 'home') {
+          outlet.innerHTML = heading('현장의 안전, 질문 하나로.', '사고 예방, 긴급 대응, 사후 처리에 필요한 정보를 한곳에서 확인하세요.', 'YOUR SAFETY, OUR PRIORITY') +
+            '<div class="cards">' +
+            '<button class="card" data-go="prevention"><span class="cardicon">🛡️</span><strong>사고 예방 · 안전 점검</strong><p>작업 전 위험요인과 점검항목 확인 →</p></button>' +
+            '<button class="card red" data-go="emergency"><span class="cardicon">🚨</span><strong>긴급 상황 · 사고 대응</strong><p>대피 및 신고 등 초기 행동 안내 →</p></button>' +
+            '<button class="card blue" data-go="after"><span class="cardicon">📋</span><strong>사고 이후 · 사후 처리</strong><p>사고 보고와 재발 방지 절차 →</p></button>' +
+            '</div><div class="panel"><div class="pill">AI DOCUMENT ASSISTANT</div><div class="paneltitle">안전 정보가 필요하신가요?</div><p class="lead" style="margin:0">관련 법령과 매뉴얼에 근거한 예시 답변을 Chat 화면에서 체험할 수 있습니다.</p><div class="actions"><button class="btn" data-go="chat">AI 안전 상담 시작 →</button><button class="btn secondary" data-go="documents">근거 자료 보기</button></div></div>';
+        } else if (view === 'emergency') {
+          outlet.innerHTML = heading('긴급 대응 가이드', '사고가 발생했거나 위험이 의심되면 우선 안전을 확보하세요.', 'EMERGENCY RESPONSE') +
+            '<div class="emergencybox"><strong>🚨 즉시 안전한 곳으로 대피하세요.</strong><p>실제 긴급상황에서는 Chat 답변을 기다리지 말고 119 신고 및 현장 비상절차를 우선하세요.</p><div class="actions"><a class="btn red" href="tel:119" style="text-decoration:none">☎ 119 신고</a></div></div>' +
+            '<div class="panel"><div class="paneltitle">가스누출·화학사고 의심 시 기본 대응</div>' +
+            ['위험구역에서 즉시 벗어나 주변 사람들에게 알립니다.', '안전한 곳에서 119에 신고합니다.', '비전문가가 위험구역에 재진입하거나 직접 차단 작업을 시도하지 않습니다.', '현장 안전관리 담당자에게 사고 위치와 확인된 위험 정보를 알립니다.'].map((t, i) => '<div class="emergencystep"><span class="stepnum">' + (i + 1) + '</span><span>' + t + '</span></div>').join('') +
+            '<div class="actions"><button class="btn" data-go="chat">사고 상황 질문하기 →</button><button class="btn secondary" data-go="home">메인으로</button></div><p class="hint">참고: 연구실 안전관리 매뉴얼, 화학물질관리법 제43조. 사고 유형별 행동요령은 다를 수 있습니다.</p></div>';
+        } else if (view === 'prevention') {
+          outlet.innerHTML = heading('사고 예방 · 안전 점검', '작업을 시작하기 전에 위험요인을 확인하세요.', 'PREVENTION CHECKLIST') +
+            '<div class="panel"><div class="paneltitle">연구실 화학·가스 안전 점검표 <span id="sp2-count" style="float:right;color:#188e74;font-size:11px"></span></div><div class="progress"><div id="sp2-fill" class="progressfill"></div></div>' +
+            checkItems.map((x, i) => '<label class="checkrow"><input data-check="' + i + '" type="checkbox" ' + (checked.has(i) ? 'checked' : '') + '/><span>' + x + '</span></label>').join('') +
+            '<div class="actions"><button class="btn" data-go="chat">점검 관련 질문하기</button></div><p class="hint">체크 여부는 데모 상태로만 저장됩니다. 실제 안전 점검이나 전문가 확인을 대체하지 않습니다.</p></div>';
+          updateProgress();
+        } else if (view === 'after') {
+          outlet.innerHTML = heading('사고 이후 · 사후 처리', '사고 발생 후에는 관련 법령과 기관별 규정에 따른 후속 조치를 확인해야 합니다.', 'POST-INCIDENT MANAGEMENT') +
+            '<div class="panel"><div class="paneltitle">사고 이후 처리 단계</div>' +
+            ['인명피해 및 현장 안전 상태 확인', '관련 기관 신고·보고 의무 확인', '사고 경위와 대응 내용 기록', '사고 원인 조사 및 추가 위험 방지', '개선조치와 재발 방지 대책 수립'].map((t, i) => '<div class="minirow"><span class="num">' + (i + 1) + '</span><span>' + t + '</span></div>').join('') +
+            '<div class="actions"><button class="btn" data-go="chat">관련 법령 질문하기</button><button class="btn secondary" data-go="documents">근거 자료 확인</button></div><p class="hint">신고 기한과 적용 법령은 사고 유형·기관·인명피해 등에 따라 달라집니다.</p></div>';
+        } else if (view === 'documents') {
+          outlet.innerHTML = heading('안전 법령 및 근거 자료실', '서비스에서 참고하는 법령과 안전관리 매뉴얼입니다.', 'KNOWLEDGE BASE') +
+            '<div class="panel"><div class="pill">PDF 업로드 → RAG 지식베이스</div><div class="paneltitle">매뉴얼 PDF 등록</div>' +
+            '<form id="sp2-upload-form" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">' +
+            '<input type="file" id="sp2-file" accept="application/pdf" required style="font-size:11px;max-width:100%"/>' +
+            '<button class="btn" type="submit"' + (uploading ? ' disabled' : '') + '>' + (uploading ? '벡터화 중…' : '업로드 · 벡터화') + '</button></form>' +
+            '<div id="sp2-upload-result" class="hint" style="margin-top:10px;white-space:pre-wrap">' + escapeHtml(uploadResult) + '</div>' +
+            '<div class="actions"><button class="btn secondary" data-go="chat">이 PDF로 질문하기 →</button></div>' +
+            '<p class="hint">업로드하면 기존 PDF 지식베이스가 새 PDF로 교체됩니다. AI 안전 상담에서 소스를 PDF로 두고 질문하세요.</p></div>' +
+            '<div class="panel"><div class="paneltitle">등록 자료 · 데모</div>' +
+            [['산업안전보건기준에 관한 규칙', '작업중지, 사고 예방, 안전조치'], ['연구실 안전환경 조성에 관한 법률', '연구실 사고 보고, 조사, 안전조치'], ['화학물질관리법', '화학사고 발생신고 및 현장 대응'], ['연구실 안전관리 매뉴얼', '긴급 대응요령, 안전사고 처리 절차'], ['가스·화공 안전 점검표', '가스누출, 감지장치, 위험물 보관'], ['KOSHA GUIDE F-1-2023', '용접·용단 작업 화재 예방 기술지침']].map(x => '<div class="doc"><strong>▤ ' + x[0] + '</strong><p>' + x[1] + '</p></div>').join('') +
+            '<p class="hint">자료 목록은 기획안 기반 예시입니다. PDF 원문 열기와 실제 RAG 검색은 아직 연결되지 않았습니다.</p></div>';
+        } else if (view === 'chat') {
+          outlet.innerHTML = heading('AI 안전 상담', '자연어로 질문하고 참고 근거가 포함된 예시 답변을 확인하세요.', 'RAG CHAT DEMO') +
+            '<div class="chatpanel"><div class="chathead">✧ SAFEPATH Assistant <span style="float:right;color:#148e72;font-size:9px">● RAG 연결 (' + RAG_API + ')</span></div><div class="messages" id="sp2-messages"></div>' +
+            '<div class="suggestions">' + samples.map((s, i) => '<button data-question="' + i + '">' + s[0] + '</button>').join('') + '</div>' +
+            '<form class="chatcompose" id="sp2-chat-form">' +
+            '<select id="sp2-source" style="border:1px solid #dce5eb;border-radius:8px;padding:0 6px;font-size:11px;color:#326476;background:#fff">' +
+            '<option value="pdf"' + (ragSource === 'pdf' ? ' selected' : '') + '>PDF</option>' +
+            '<option value="web"' + (ragSource === 'web' ? ' selected' : '') + '>WEB</option></select>' +
+            '<input id="sp2-input" placeholder="안전 관련 질문을 입력하세요..." autocomplete="off" required maxlength="400"/><button class="btn" type="submit"' + (pending ? ' disabled' : '') + '>' + (pending ? '검색 중…' : '전송 →') + '</button></form></div>' +
+            '<p class="hint" style="margin-top:12px">업로드된 매뉴얼(PDF/WEB)을 검색해 답변합니다. 서버가 꺼져 있으면 데모 답변을 보여줍니다. 실제 긴급 상황에서는 119 신고를 우선하세요.</p>';
+          if (messages.length === 0) messages.push({ role: 'bot', title: '안녕하세요! SAFEPATH입니다.', body: '안전수칙, 긴급 대응, 사고 이후 절차를 질문해 보세요. 아래 예시 질문을 눌러도 됩니다.', sources: [] });
+          drawMessages();
+        }
+      }
+      function updateProgress() {
+        const el = $('#sp2-count');
+        if (!el) return;
+        el.textContent = checked.size + ' / ' + checkItems.length + ' 완료';
+        $('#sp2-fill').style.width = (100 * checked.size / checkItems.length) + '%';
+      }
+      function classify(q) {
+        if (/신고|사후|사고 후|사고 이후|재발|보고|조사|복구/.test(q)) return 'after';
+        if (/누출|가스가 새|가스 냄새|가스 유출/.test(q)) return /예방|점검/.test(q) ? 'gas' : 'leak';
+        if (/용접|용단/.test(q)) return 'welding';
+        if (/고압가스|가스용기|가스 용기|보관|점검/.test(q)) return 'gas';
+        return 'unknown';
+      }
+      function scrollChat() {
+        const box = $('#sp2-messages');
+        if (box) box.scrollTop = box.scrollHeight;
+      }
+      // 질문 → FastAPI /rag-query 호출 → 답변 표시 (실패 시 데모 답변으로 대체)
+      async function ask(q) {
+        q = String(q || '').trim();
+        if (!q || pending) return;
+        messages.push({ role: 'user', body: q });
+        const botMsg = { role: 'bot', title: '매뉴얼 검색 중…', body: '관련 문서를 찾고 답변을 만들고 있어요.', sources: [] };
+        messages.push(botMsg);
+        pending = true;
+        render('chat'); scrollChat();
+        try {
+          const res = await fetch(RAG_API + '/rag-query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: q, source: ragSource, top_k: 5 })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : ('HTTP ' + res.status));
+          botMsg.title = data.handoff
+            ? '🙋 매뉴얼에 근거가 없어요 — 안전관리자 확인 필요'
+            : (data.needs_review ? '🚨 긴급 상황 — ' : '') + 'SAFEPATH 답변 (' + ragSource.toUpperCase() + ' 근거)';
+          botMsg.body = data.answer || data.response || '답변을 받지 못했습니다.';
+          // 백엔드가 sources를 보내주면 출처 태그로 표시
+          botMsg.sources = Array.isArray(data.sources)
+            ? data.sources.map(s => typeof s === 'string' ? s : (s.source || s.title || JSON.stringify(s)))
+            : [];
+        } catch (err) {
+          const demo = answers[classify(q)];
+          botMsg.title = '⚠️ 서버 연결 실패 — 데모 답변: ' + demo.title;
+          botMsg.body = demo.body + '\n\n(오류: ' + err.message + ')';
+          botMsg.sources = demo.sources;
+        } finally {
+          pending = false;
+          if (current === 'chat') { render('chat'); scrollChat(); }
+        }
+      }
+      function drawMessages() {
+        const container = $('#sp2-messages');
+        if (!container) return;
+        container.replaceChildren();
+        messages.forEach((m, i) => {
+          const row = document.createElement('div');
+          row.className = 'message ' + (m.role === 'user' ? 'user' : 'bot');
+          if (m.role === 'bot') {
+            const avatar = document.createElement('span'); avatar.className = 'botavatar'; avatar.textContent = '◇'; row.appendChild(avatar);
+          }
+          const bubble = document.createElement('div'); bubble.className = 'bubble';
+          if (m.title) { const b = document.createElement('b'); b.textContent = m.title; bubble.appendChild(b); }
+          const body = document.createElement('span'); body.textContent = m.body; bubble.appendChild(body);
+          if (m.sources && m.sources.length) {
+            const div = document.createElement('div'); div.style.marginTop = '10px';
+            m.sources.forEach(s => { const tag = document.createElement('span'); tag.className = 'source'; tag.textContent = s; div.appendChild(tag); });
+            bubble.appendChild(div);
+          }
+          if (m.role === 'bot') {
+            const btn = document.createElement('button'); btn.className = 'voice'; btn.textContent = '▶ 음성으로 듣기'; btn.dataset.voice = String(i); bubble.appendChild(btn);
+          }
+          row.appendChild(bubble); container.appendChild(row);
+        });
+      }
+      function say(index, button) {
+        if (!('speechSynthesis' in window)) { button.textContent = '이 브라우저는 TTS를 지원하지 않습니다'; return; }
+        if (speechSynthesis.speaking) {
+          speechSynthesis.cancel();
+          if (speechButton) speechButton.textContent = '▶ 음성으로 듣기';
+          if (speechButton === button) { speechButton = null; return; }
+        }
+        const msg = messages[index];
+        if (!msg) return;
+        const utter = new SpeechSynthesisUtterance((msg.title || '') + '. ' + msg.body);
+        utter.lang = 'ko-KR'; utter.rate = 0.95;
+        button.textContent = '■ 음성 중지'; speechButton = button;
+        utter.onend = utter.onerror = () => { button.textContent = '▶ 음성으로 듣기'; speechButton = null; };
+        speechSynthesis.speak(utter);
+      }
+      root.addEventListener('click', function (e) {
+        const go = e.target.closest('[data-go]');
+        if (go && root.contains(go)) { render(go.dataset.go); return; }
+        const suggested = e.target.closest('[data-question]');
+        if (suggested && root.contains(suggested)) {
+          const index = Number(suggested.dataset.question);
+          if (samples[index]) ask(samples[index][0]);
+          return;
+        }
+        const voice = e.target.closest('[data-voice]');
+        if (voice && root.contains(voice)) { say(Number(voice.dataset.voice), voice); }
+      });
+      root.addEventListener('change', function (e) {
+        if (e.target.id === 'sp2-source') { ragSource = e.target.value; return; }
+        if (e.target.matches('[data-check]')) {
+          const i = Number(e.target.dataset.check);
+          if (e.target.checked) checked.add(i); else checked.delete(i);
+          updateProgress();
+        }
+      });
+      root.addEventListener('submit', function (e) {
+        if (e.target.id === 'sp2-upload-form') {
+          e.preventDefault();
+          const f = $('#sp2-file');
+          if (f && f.files[0]) uploadPdf(f.files[0]);
+          return;
+        }
+        if (e.target.id !== 'sp2-chat-form') return;
+        e.preventDefault();
+        const inp = $('#sp2-input');
+        if (inp) ask(inp.value);
+      });
+      const download = $('#sp2-download');
+      if (download) download.addEventListener('click', function () {
+        try {
+          const css = $('#sp2-style')?.textContent || '';
+          const layout = $('.shell')?.outerHTML || '';
+          const code = '(' + boot.toString() + ')();';
+          const html = '<!DOCTYPE html>\n<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SAFEPATH - Safety AI</title><style>' + css + '</style></head><body style="margin:0"><div id="safepath-v2">' + layout + '</div><scr' + 'ipt>' + code + '</scr' + 'ipt></body></html>';
+          const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = 'safepath-fixed.html';
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 3000);
+        } catch (err) { alert('이 미리보기 환경에서 다운로드가 제한되었습니다.'); }
+      });
+      render('home');
+    })();</script>
+</body>
+
+</html>
