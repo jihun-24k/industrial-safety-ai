@@ -354,11 +354,74 @@ EMERGENCY_LINE = "⚠️ 사람이 다쳤거나 위험이 계속되면 즉시 11
 def is_emergency(q: str) -> bool:
     return any(w in q for w in EMERGENCY_WORDS)
 
-INCIDENT_WORDS = EMERGENCY_WORDS + ["사고", "쏟", "엎질", "노출", "흡입", "튀었", "터졌", "냄새"]
+INCIDENT_WORDS = EMERGENCY_WORDS + ["사고", "쏟", "엎질", "깨졌", "깨진", "노출", "흡입", "튀었", "터졌", "냄새"]
 
 def is_incident(q: str) -> bool:
     """사고 상황 질문인지 (단순 용어·기준 질문에는 검색 계획을 쓰지 않음)"""
     return any(w in q for w in INCIDENT_WORDS)
+
+# ✅ 물질명 오탈자 보정 (예: 영화수소 → 염화수소)
+#   조원 파이프라인의 물질 목록(material_catalog.json)에 있는 이름과 "자모 단위"로 비교한다
+import difflib
+JOSA = ("으로", "에서", "에게", "이랑", "을", "를", "이", "가", "은", "는", "에", "의", "도", "와", "과", "로", "랑")
+TYPO_MIN_RATIO = 0.85   # 이 이상 비슷하면 오탈자로 봄
+TYPO_MIN_LEN = 3        # 3글자 이상 물질명만 보정 (짧은 이름은 오보정 위험)
+
+def to_jamo(text: str) -> str:
+    """한글을 자모로 분해: 염 → ㅇㅕㅁ (한 글자 차이를 더 정밀하게 비교하려고)"""
+    CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"
+    JUNG = "ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ"
+    JONG = " ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ"
+    out = []
+    for ch in text:
+        code = ord(ch) - 0xAC00
+        if 0 <= code < 11172:
+            out += [CHO[code // 588], JUNG[(code % 588) // 28], JONG[code % 28].strip()]
+        else:
+            out.append(ch)
+    return "".join(out)
+
+def load_material_names() -> list[str]:
+    """현재 팀 인덱스의 물질 목록에서 한글 물질명(3글자 이상)만 모은다"""
+    if not USE_TEAM_INDEX:
+        return []
+    try:
+        folder = team_pipeline.resolve_pointer(TEAM_CFG["output_root"], "current.json")
+        catalog = json.loads((folder / "material_catalog.json").read_text(encoding="utf-8"))
+        names = {a for e in catalog for a in e.get("aliases_from_source", [])
+                 if re.fullmatch(r"[가-힣]+", a) and len(a) >= TYPO_MIN_LEN}
+        return sorted(names)
+    except Exception as e:
+        print(f"⚠️ 물질 목록을 불러오지 못했습니다: {e}")
+        return []
+
+def correct_material_typos(question: str) -> tuple[str, list[tuple[str, str]], list[str]]:
+    """반환: (보정된 질문, [(원래 단어, 보정 이름)], [헷갈리는 후보 안내])
+    - 후보가 1개만 아주 비슷하면 → 자동 보정 + 사용자에게 알림
+    - 비슷한 후보가 여러 개면 → 보정하지 않고 되묻기"""
+    names = load_material_names()
+    if not names:
+        return question, [], []
+    fixed, corrections, ambiguous = question, [], []
+    for token in re.findall(r"[가-힣]+", question):
+        word = token
+        for j in JOSA:                       # 조사 떼기: 영화수소가 → 영화수소
+            if word.endswith(j) and len(word) - len(j) >= TYPO_MIN_LEN:
+                word = word[: -len(j)]
+                break
+        if len(word) < TYPO_MIN_LEN or word in names:
+            continue
+        scored = sorted(((difflib.SequenceMatcher(None, to_jamo(word), to_jamo(n)).ratio(), n) for n in names
+                         if abs(len(n) - len(word)) <= 1), reverse=True)
+        close = [(r, n) for r, n in scored if r >= TYPO_MIN_RATIO]
+        if len(close) == 1 or (len(close) > 1 and close[0][0] - close[1][0] >= 0.05):
+            fixed = fixed.replace(word, close[0][1])
+            corrections.append((word, close[0][1]))
+        elif len(close) > 1:
+            ambiguous.append(f"'{word}'은(는) {', '.join(n for _, n in close[:3])} 중 어떤 물질인가요?")
+    if corrections:
+        print(f"[오탈자 보정] {corrections}")
+    return fixed, corrections, ambiguous
 
 def make_search_plan(question: str) -> dict | None:
     """검색 계획 프롬프트로 JSON 계획을 받는다. 실패하면 None → 원래 질문 하나로만 검색"""
@@ -452,7 +515,8 @@ def make_context(docs, limit_chars: int = 12000) -> str:
 
 @app.post("/rag-query", response_model=AnswerResponse, summary="Closed Source LLM + 벡터 DB 질의", tags=["질의 응답"])
 async def rag_query(rag_request: RAGRequest = Body(...)):
-    q = rag_request.prompt.strip()
+    original_q = rag_request.prompt.strip()
+    q, typo_fixes, typo_questions = correct_material_typos(original_q)   # 물질명 오탈자 보정
     emergency = is_emergency(q)
 
     # 1. 벡터스토어 선택 (PDF + 팀 인덱스가 있으면 팀 인덱스 사용)
@@ -502,7 +566,7 @@ async def rag_query(rag_request: RAGRequest = Body(...)):
         # 3. 근거 없음 → LLM 호출하지 않고 handoff
         if not context.strip():
             answer = (EMERGENCY_LINE + "\n\n" if emergency else "") + NOT_FOUND_MSG
-            return AnswerResponse(prompt=q, answer=answer, sources=[], needs_review=emergency, handoff=True, search_queries=[qq for _, qq in queries[1:]], clarifying_questions=(plan or {}).get("clarifying_questions", []))
+            return AnswerResponse(prompt=original_q, answer=answer, sources=[], needs_review=emergency, handoff=True, search_queries=[qq for _, qq in queries[1:]], clarifying_questions=typo_questions + (plan or {}).get("clarifying_questions", []))
 
         # 4. LLM 답변 생성
         raw = llm.invoke([HumanMessage(content=build_prompt(context, q))]).content
@@ -514,7 +578,7 @@ async def rag_query(rag_request: RAGRequest = Body(...)):
         # 5. LLM이 근거 없다고 판단 → handoff
         if not final or final.upper().startswith("N/A"):
             answer = (EMERGENCY_LINE + "\n\n" if emergency else "") + NOT_FOUND_MSG
-            return AnswerResponse(prompt=q, answer=answer, sources=[], needs_review=emergency, handoff=True, search_queries=[qq for _, qq in queries[1:]], clarifying_questions=(plan or {}).get("clarifying_questions", []))
+            return AnswerResponse(prompt=original_q, answer=answer, sources=[], needs_review=emergency, handoff=True, search_queries=[qq for _, qq in queries[1:]], clarifying_questions=typo_questions + (plan or {}).get("clarifying_questions", []))
 
         # 6. 출처 정리: LLM이 실제로 인용한 (문서 N)만 표시, 인용이 없으면 검색된 문서 전체
         cited = [int(n) for n in re.findall(r"문서\s*(\d+)", final)]
@@ -531,7 +595,10 @@ async def rag_query(rag_request: RAGRequest = Body(...)):
 
         if emergency:
             final = EMERGENCY_LINE + "\n\n" + final
-        return AnswerResponse(prompt=q, answer=final, sources=sources, needs_review=emergency, handoff=False, search_queries=[qq for _, qq in queries[1:]], clarifying_questions=(plan or {}).get("clarifying_questions", []))
+        if typo_fixes:   # 무엇을 어떻게 고쳐 이해했는지 사용자에게 알림 (잘못 보정했을 때 바로 알 수 있게)
+            note = ", ".join(f"'{a}' → '{b}'" for a, b in typo_fixes)
+            final = f"※ 질문의 {note}(으)로 이해하고 답했습니다. 다른 물질이면 다시 알려주세요.\n\n" + final
+        return AnswerResponse(prompt=original_q, answer=final, sources=sources, needs_review=emergency, handoff=False, search_queries=[qq for _, qq in queries[1:]], clarifying_questions=typo_questions + (plan or {}).get("clarifying_questions", []))
 
     except HTTPException:
         raise
