@@ -1,4 +1,4 @@
-# 세이프메이트 프론트엔드
+# SafeOps 프론트엔드
 
 Vue 3 + Vite 기반 로그인·채팅 UI입니다. Java·Python 서버 코드는 수정하지 않습니다.
 
@@ -73,3 +73,20 @@ npm run build
 `dist/`를 생성합니다. Vite 프록시는 개발 전용입니다. 배포 시 웹 서버에서 위 세 경로의 리버스 프록시를 설정해야 합니다. `npm run preview`는 정적 빌드 확인용이며 실제 API 프록시를 제공하지 않습니다.
 
 실제 로그인에는 인증 서버의 `DB_PASSWORD`, `JWT_SECRET` 실행 환경 설정이 필요합니다. Java 인증 서버의 JWT 키는 기존 음성 서버의 검증 키와 일치해야 합니다. 로컬 실행용 `.cache/runtime/` 스크립트·설정은 Git에 포함되지 않습니다.
+
+
+## Figma 디자인 적용 (2026-10-23)
+
+기준 브랜치는 `origin/master`의 `56ecee2`이며, 실시간 음성 입력·스트리밍·가입·PDF 첨부 흐름을 유지합니다.
+[Figma 웹](https://www.figma.com/design/gxddP7kyid7IQi6Lftb2KH?node-id=12-44),
+[모바일](https://www.figma.com/design/gxddP7kyid7IQi6Lftb2KH?node-id=12-137)의 그라데이션·유리 카드·SafeOps 워드마크를 Vue/CSS로 적용했습니다.
+Figma에서 내려받은 실제 SVG는 `public/brand/`에 있으며 웹 봇 240px·모바일 봇 150px·심볼 30px의 원본 비율을 유지합니다.
+Figma의 React `primitives/Button`은 이 Vue 프로젝트의 의존성이 아니므로 기존 Vue 버튼과 공통 CSS에 맞춰 구현했습니다.
+서체는 Manrope(브랜드)와 Noto Sans KR(본문)이며 Google Fonts 접근 불가 시 시스템 서체로 표시됩니다.
+
+상담 기록은 웹·모바일 모두 메뉴에서 열며, Escape로 닫을 수 있습니다. 답변 원문은 요약하지 않고 `#` 제목 구간만 카드로 나눕니다. HTML은 실행하지 않고 텍스트로 표시합니다.
+`needs_review`, `handoff`, `clarifying_questions`, `sources`는 서버의 실제 반환값을 사용합니다. 출처는 파일명/페이지 목록이며, 현재 API에 PDF 다운로드 URL이 없어 가짜 원문 링크를 만들지 않습니다.
+
+현재 API에는 별도 연락처 필드가 없습니다. 전화 카드는 **답변의 완전한 국내 번호와 명시적인 119/112 연락 문구**를 표시할 뿐, 기관·최신성·연락 시간의 검증 결과가 아닙니다. 불완전한 지역번호를 보충하지 않습니다. 번호 확인 후 `tel:` 링크를 누르면 기기의 전화 앱을 여는 방식이며 자동 발신하지 않습니다. 시안의 병원 번호는 미리보기에서만 예시로 표시하고 전화는 비활성화합니다. 운영용 담당자/시간 연결은 추후 구조화된 연락처 API가 필요합니다.
+
+검증: `npm test`, `npm run build`. 미리보기로 웹/모바일 UI를 확인하며 실제 API 답변 생성·전화·마이크 전송은 별도 실행하지 않습니다.

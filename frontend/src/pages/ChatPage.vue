@@ -33,9 +33,9 @@ let audio = null;
 let queryController = null;
 
 const examples = [
-  '작업 전 안전 점검 항목을 알려줘',
-  '보호구 착용 기준이 궁금해요',
-  '추락 사고 예방 수칙을 설명해줘',
+  '물질을 쏟았어요',
+  '불이나 연기가 보여요',
+  '사람에게 노출됐어요',
 ];
 
 const conversation = computed(() => conversations.value.find((chat) => chat.id === activeId.value));
@@ -145,6 +145,10 @@ async function send(text = '') {
         role: 'assistant',
         text: '이 답변은 화면과 음성 재생을 확인하기 위한 예시입니다. 실제 자료 검색은 수행하지 않았습니다.\n\n로그인 후 문서에 관해 질문하거나 마이크 버튼으로 음성 질문을 입력할 수 있습니다.\n\n답변 아래의 ‘답변 듣기’를 누르면 음성이 재생됩니다.',
         source: '화면 미리보기',
+        preview: true,
+        needsReview: true,
+        clarifyingQuestions: ['어떤 물질인가요?', '노출된 사람이 있나요?', '불꽃이나 연기가 보이나요?'],
+        contacts: [{ number: '033-741-0114', context: '원주세브란스 기독병원 · Figma 시안 예시', dialable: false }],
       });
     } else {
       const placeholder = {
@@ -180,6 +184,10 @@ async function send(text = '') {
       if (typeof data.answer !== 'string' || !data.answer.trim()) {
         throw new Error('답변이 비어 있습니다. 다시 질문해 주세요.');
       }
+      assistantMessage.sources = Array.isArray(data.sources) ? data.sources : [];
+      assistantMessage.needsReview = data.needs_review === true;
+      assistantMessage.handoff = data.handoff === true;
+      assistantMessage.clarifyingQuestions = Array.isArray(data.clarifying_questions) ? data.clarifying_questions : [];
       assistantMessage.text = data.answer.trim();
       assistantMessage.pending = false;
       assistantMessage.streaming = false;
@@ -280,13 +288,14 @@ async function speak(message) {
       @close="menu = false"
     />
 
-    <main class="workspace">
+    <main class="workspace" :class="{ 'is-welcome': !messages.length }">
       <ChatHeader
         :demo="demo"
         :streaming="streamingEnabled"
         :mode-disabled="controlsDisabled"
         @update:streaming="streamingEnabled = $event"
         @open-menu="menu = true"
+        @new-chat="newChat"
       />
       <div v-if="demo" class="demo-banner">화면 미리보기 모드입니다. 답변은 예시이며 실제 자료를 검색하지 않습니다.</div>
       <MessageList
@@ -297,6 +306,8 @@ async function speak(message) {
         :tts-loading="ttsLoading"
         :speaking-id="speakingId"
         :examples="examples"
+        :demo="demo"
+        :disabled="controlsDisabled"
         @send-example="send"
         @speak="speak"
       />

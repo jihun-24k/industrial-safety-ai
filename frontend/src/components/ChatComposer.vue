@@ -42,10 +42,11 @@ function handleFile(event) {
     <p v-if="error" class="error inline-error" role="alert">{{ error }} <button aria-label="알림 닫기" @click="$emit('dismiss-error')">×</button></p>
     <p v-if="notice" class="notice" role="status">{{ notice }} <button aria-label="알림 닫기" @click="$emit('dismiss-notice')">×</button></p>
     <form class="composer" @submit.prevent="$emit('send')">
-      <textarea
+      <label class="composer-title" for="safety-question">상황을 자세히 알려주세요</label>
+      <textarea id="safety-question"
         :value="draft"
         aria-label="안전 질문"
-        placeholder="안전에 대해 궁금한 점을 물어보세요…"
+        placeholder="물질명, 노출된 사람, 화재 여부 등을 알려주세요…"
         rows="2"
         maxlength="6000"
         :disabled="inputDisabled"
@@ -65,11 +66,12 @@ function handleFile(event) {
             <svg v-if="voiceState !== 'recording'" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0014 0v-2M12 19v3m-4 0h8"/></svg>
             <span v-else aria-hidden="true">■</span>
           </button>
-          <button class="send-button" aria-label="질문 보내기" :disabled="!props.draft.trim() || inputDisabled">↑</button>
+          <button class="send-button" aria-label="질문 보내기" :disabled="!props.draft.trim() || inputDisabled"><span>질문 보내기</span> ↑</button>
         </div>
       </div>
       <p class="voice-status" :class="{recording:voiceState === 'recording'}" role="status">{{voiceState === 'recording' ? '실시간 인식 중 · 말한 뒤 3초간 조용하면 자동으로 질문해요. 최대 60초' : voiceState === 'idle' ? '마이크로 말하면 실시간 입력 · 3초 무음 뒤 자동 질문' : voiceLabel}}</p>
     </form>
+    <p class="emergency-note">긴급한 구조가 필요하면 AI 응답을 기다리지 말고 119에 연락하세요.</p>
     <p class="composer-disclaimer">AI 답변은 참고용입니다. 실제 작업 시 현장 안전 지침을 우선 확인하세요.</p>
   </div>
 </template>

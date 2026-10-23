@@ -1,0 +1,12 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="SafeOps / S circuit symbol">
+<path id="Vector" d="M20 1H10C5.02944 1 1 5.02944 1 10V20C1 24.9706 5.02944 29 10 29H20C24.9706 29 29 24.9706 29 20V10C29 5.02944 24.9706 1 20 1Z" fill="url(#paint0_linear_0_68)"/>
+<path id="Vector_2" d="M20 8H18M18 8H13L8 15H13M18 8L13 15M13 15H17M17 15L12 22M17 15H22L17 22H12M12 22H10H9" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" stroke="white"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_68" x1="1" y1="1" x2="29" y2="29" gradientUnits="userSpaceOnUse">
+<stop stop-color="#8C80F2"/>
+<stop offset="1" stop-color="#3979CB"/>
+</linearGradient>
+</defs>
+</svg>
