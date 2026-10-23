@@ -1,7 +1,9 @@
 import { defineConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
 
 // Keep browser requests on one origin, including HttpOnly authentication cookies.
 export default defineConfig({
+  plugins: [vue()],
   server: {
     proxy: {
       '/auth-api': { target: 'http://localhost:8080', rewrite: p => p.replace(/^\/auth-api/, '/api') },
