@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from sqlalchemy.ext.asyncio import create_async_engine
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_openai import ChatOpenAI
@@ -282,7 +282,7 @@ async def upload_pdf(file: UploadFile = File(...)):
 # 질의 요청/응답 모델 정의
 # ✅ 질의 요청 모델
 class RAGRequest(BaseModel):
-    prompt: str = Field(default=..., min_length=2, max_length=1000, description="질문 프롬프트")
+    prompt: str = Field(default=..., min_length=2, max_length=6000, description="질문 프롬프트")
     source: Literal["web", "pdf"] = Field(default=..., description="web | pdf")
     top_k: int = Field(default=5, ge=1, le=20, description="검색할 결과 수 (기본값 5)")
 
@@ -480,7 +480,9 @@ def doc_label(doc) -> str:
         label += f" · {extra[:30]}{'…' if len(extra) > 30 else ''}"
     return label
 
-def build_prompt(context: str, question: str) -> str:
+def build_prompt(context: str, question: str, include_markers: bool = True) -> str:
+    ending = ("### ANSWER_START\n<답변>\n### ANSWER_END" if include_markers
+              else "답변 본문만 출력하세요.")
     return (
         "당신은 산업 현장 안전사고 대응 도우미입니다. 아래 [검색 내용]은 안전 매뉴얼에서 찾은 부분입니다.\n"
         "규칙:\n"
@@ -496,7 +498,7 @@ def build_prompt(context: str, question: str) -> str:
         "- 문서에 없는 항목은 'N/A'라고 쓰지 말고 아예 빼세요.\n\n"
         f"[검색 내용]\n{context}\n\n"
         f"[질문] {question}\n\n"
-        "### ANSWER_START\n<답변>\n### ANSWER_END"
+        f"{ending}"
     )
 
 def make_context(docs, limit_chars: int = 12000) -> str:
@@ -513,13 +515,10 @@ def make_context(docs, limit_chars: int = 12000) -> str:
         total += len(excerpt)
     return "\n\n".join(chunks)
 
-@app.post("/rag-query", response_model=AnswerResponse, summary="Closed Source LLM + 벡터 DB 질의", tags=["질의 응답"])
-async def rag_query(rag_request: RAGRequest = Body(...)):
-    original_q = rag_request.prompt.strip()
-    q, typo_fixes, typo_questions = correct_material_typos(original_q)   # 물질명 오탈자 보정
+async def prepare_rag(rag_request: RAGRequest) -> dict:
+    """공통 검색 단계. 일반 JSON 응답과 스트리밍 응답이 같은 근거를 사용하게 한다."""
+    q = rag_request.prompt.strip()
     emergency = is_emergency(q)
-
-    # 1. 벡터스토어 선택 (PDF + 팀 인덱스가 있으면 팀 인덱스 사용)
     use_team = rag_request.source == "pdf" and USE_TEAM_INDEX
     vectorstore = VECTORSTORE_PDF if rag_request.source == "pdf" else VECTORSTORE_WEB
     if vectorstore is None and not use_team:
@@ -527,84 +526,152 @@ async def rag_query(rag_request: RAGRequest = Body(...)):
             status_code=503,
             detail=f"❗ {rag_request.source.upper()} 지식베이스가 준비되지 않았습니다. 먼저 자료를 업로드해 주세요.",
         )
-    llm = ChatOpenAI(model=LLM_MODEL, temperature=0.2, timeout=30)
+    plan = await asyncio.to_thread(make_search_plan, q) if (USE_SEARCH_PLAN and is_incident(q)) else None
+    queries = [(None, q)]
+    if plan:
+        queries += [(it.get("category"), it["query"]) for it in plan["search_plan"][:MAX_PLAN_QUERIES]
+                    if isinstance(it, dict) and it.get("query")]
+    k_each = rag_request.top_k if len(queries) == 1 else PLAN_TOP_K
 
+    found_all = await asyncio.gather(*[
+        asyncio.to_thread(retrieve_one, rag_request.source, use_team, vectorstore, query, k_each, cat)
+        for cat, query in queries
+    ])
+    seen, docs_scores = set(), []
+    for (cat, _), found in zip(queries, found_all):
+        for doc, score in found:
+            key = (doc.metadata or {}).get("chunk_id") or doc.page_content[:200]
+            if key in seen:
+                continue
+            seen.add(key)
+            if cat:
+                doc.metadata["plan_category"] = cat
+            docs_scores.append((doc, score))
+    docs_scores = docs_scores[:MAX_CONTEXT_DOCS]
+    for i, (doc, score) in enumerate(docs_scores, start=1):
+        print(f"[{rag_request.source.upper()} 검색 {i}] 거리={score:.4f}, 출처={doc_label(doc)}, 내용={doc.page_content[:120]!r}")
+    if MAX_DISTANCE > 0:
+        docs_scores = [(d, s) for d, s in docs_scores if s <= MAX_DISTANCE]
+    docs = [d for d, _ in docs_scores]
+    return {
+        "q": q,
+        "emergency": emergency,
+        "plan": plan,
+        "queries": queries,
+        "docs": docs,
+        "context": make_context(docs),
+    }
+
+
+def finish_rag(state: dict, raw: str) -> dict:
+    """LLM 출력을 후처리하고 일반·스트리밍 API에 공통으로 쓸 결과를 만든다."""
+    q, docs, emergency = state["q"], state["docs"], state["emergency"]
+    plan, queries = state["plan"], state["queries"]
+    final = (extract_by_marker(raw) or raw).strip()
+    final = re.sub(r"###\s*ANSWER_(START|END)|<답변>", "", final).strip()
+    base = {
+        "prompt": q,
+        "needs_review": emergency,
+        "search_queries": [query for _, query in queries[1:]],
+        "clarifying_questions": (plan or {}).get("clarifying_questions", []),
+    }
+    if not final or final.upper().startswith("N/A"):
+        answer = (EMERGENCY_LINE + "\n\n" if emergency else "") + NOT_FOUND_MSG
+        return {**base, "answer": answer, "sources": [], "handoff": True}
+
+    cited = [int(n) for n in re.findall(r"문서\s*(\d+)", final)]
+    used = [docs[n - 1] for n in cited if 1 <= n <= len(docs)] or docs
+    sources = list(dict.fromkeys(doc_label(doc) for doc in used))
+
+    def to_label(match):
+        nums = [int(n) for n in re.findall(r"\d+", match.group(0))]
+        labels = [doc_label(docs[n - 1]).split(" · ")[0].replace(".pdf", "")
+                  for n in nums if 1 <= n <= len(docs)]
+        return f"({', '.join(dict.fromkeys(labels))})" if labels else ""
+
+    final = re.sub(r"\(\s*문서\s*\d+(?:\s*,\s*문서\s*\d+)*\s*\)", to_label, final)
+    if emergency:
+        final = EMERGENCY_LINE + "\n\n" + final
+    return {**base, "answer": final, "sources": sources, "handoff": False}
+
+
+def chunk_text(content) -> str:
+    """LangChain이 문자열 또는 content block 목록으로 준 토큰을 문자열로 바꾼다."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            item if isinstance(item, str) else str(item.get("text", ""))
+            for item in content if isinstance(item, (str, dict))
+        )
+    return "" if content is None else str(content)
+
+
+def sse_event(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+@app.post("/rag-query", response_model=AnswerResponse, summary="Closed Source LLM + 벡터 DB 질의", tags=["질의 응답"])
+async def rag_query(rag_request: RAGRequest = Body(...)):
     try:
-        # 2-1. 검색 계획: 사고 질문이면 검색어를 묶음별로 나눔 (단순 질문은 원래 질문만)
-        plan = await asyncio.to_thread(make_search_plan, q) if (USE_SEARCH_PLAN and is_incident(q)) else None
-        queries = [(None, q)]                                   # (검색 묶음, 검색어) — 원래 질문은 항상 포함
-        if plan:
-            queries += [(it.get("category"), it["query"]) for it in plan["search_plan"][:MAX_PLAN_QUERIES]
-                        if isinstance(it, dict) and it.get("query")]
-        k_each = rag_request.top_k if len(queries) == 1 else PLAN_TOP_K
-
-        # 2-2. 검색어마다 동시에 검색 (거리 점수 포함)
-        found_all = await asyncio.gather(*[
-            asyncio.to_thread(retrieve_one, rag_request.source, use_team, vectorstore, query, k_each, cat)
-            for cat, query in queries
-        ])
-
-        # 2-3. 합치기: 같은 청크는 한 번만, 계획 순서 유지, 최대 MAX_CONTEXT_DOCS개
-        seen, docs_scores = set(), []
-        for (cat, _), found in zip(queries, found_all):
-            for doc, score in found:
-                key = (doc.metadata or {}).get("chunk_id") or doc.page_content[:200]
-                if key in seen:
-                    continue
-                seen.add(key)
-                if cat:
-                    doc.metadata["plan_category"] = cat
-                docs_scores.append((doc, score))
-        docs_scores = docs_scores[:MAX_CONTEXT_DOCS]
-        for i, (doc, score) in enumerate(docs_scores, start=1):
-            print(f"[{rag_request.source.upper()} 검색 {i}] 거리={score:.4f}, 출처={doc_label(doc)}, 내용={doc.page_content[:120]!r}")
-        if MAX_DISTANCE > 0:  # 선택: 거리 임계값으로 관련 없는 문서 제외
-            docs_scores = [(d, s) for d, s in docs_scores if s <= MAX_DISTANCE]
-        docs = [d for d, _ in docs_scores]
-        context = make_context(docs)
-
-        # 3. 근거 없음 → LLM 호출하지 않고 handoff
-        if not context.strip():
-            answer = (EMERGENCY_LINE + "\n\n" if emergency else "") + NOT_FOUND_MSG
-            return AnswerResponse(prompt=original_q, answer=answer, sources=[], needs_review=emergency, handoff=True, search_queries=[qq for _, qq in queries[1:]], clarifying_questions=typo_questions + (plan or {}).get("clarifying_questions", []))
-
-        # 4. LLM 답변 생성
-        raw = llm.invoke([HumanMessage(content=build_prompt(context, q))]).content
-        raw = raw.strip() if isinstance(raw, str) else str(raw).strip()
+        state = await prepare_rag(rag_request)
+        if not state["context"].strip():
+            return AnswerResponse(**finish_rag(state, "N/A"))
+        llm = ChatOpenAI(model=LLM_MODEL, temperature=0.2, timeout=30)
+        message = await asyncio.to_thread(
+            llm.invoke, [HumanMessage(content=build_prompt(state["context"], state["q"]))]
+        )
+        raw = chunk_text(message.content).strip()
         print(f"[LLM 원본 응답] {raw[:800]}")
-        final = (extract_by_marker(raw) or raw).strip()
-        final = re.sub(r"###\s*ANSWER_(START|END)|<답변>", "", final).strip()   # 자리표시 글자 제거
-
-        # 5. LLM이 근거 없다고 판단 → handoff
-        if not final or final.upper().startswith("N/A"):
-            answer = (EMERGENCY_LINE + "\n\n" if emergency else "") + NOT_FOUND_MSG
-            return AnswerResponse(prompt=original_q, answer=answer, sources=[], needs_review=emergency, handoff=True, search_queries=[qq for _, qq in queries[1:]], clarifying_questions=typo_questions + (plan or {}).get("clarifying_questions", []))
-
-        # 6. 출처 정리: LLM이 실제로 인용한 (문서 N)만 표시, 인용이 없으면 검색된 문서 전체
-        cited = [int(n) for n in re.findall(r"문서\s*(\d+)", final)]
-        used = [docs[n - 1] for n in cited if 1 <= n <= len(docs)] or docs
-        sources = list(dict.fromkeys(doc_label(d) for d in used))
-
-        # (문서 N) → (파일명 p.N) 으로 바꿔서 사용자가 바로 알아보게
-        def to_label(match):
-            nums = [int(n) for n in re.findall(r"\d+", match.group(0))]
-            labels = [doc_label(docs[n - 1]).split(" · ")[0].replace(".pdf", "")
-                      for n in nums if 1 <= n <= len(docs)]
-            return f"({', '.join(dict.fromkeys(labels))})" if labels else ""
-        final = re.sub(r"\(\s*문서\s*\d+(?:\s*,\s*문서\s*\d+)*\s*\)", to_label, final)
-
-        if emergency:
-            final = EMERGENCY_LINE + "\n\n" + final
-        if typo_fixes:   # 무엇을 어떻게 고쳐 이해했는지 사용자에게 알림 (잘못 보정했을 때 바로 알 수 있게)
-            note = ", ".join(f"'{a}' → '{b}'" for a, b in typo_fixes)
-            final = f"※ 질문의 {note}(으)로 이해하고 답했습니다. 다른 물질이면 다시 알려주세요.\n\n" + final
-        return AnswerResponse(prompt=original_q, answer=final, sources=sources, needs_review=emergency, handoff=False, search_queries=[qq for _, qq in queries[1:]], clarifying_questions=typo_questions + (plan or {}).get("clarifying_questions", []))
-
+        return AnswerResponse(**finish_rag(state, raw))
     except HTTPException:
         raise
     except Exception as e:
-        # 타임아웃·모델 오류 등은 503으로 안내 (교재 API 규칙)
         raise HTTPException(status_code=503, detail=f"LLM 또는 검색 처리 중 오류: {e}")
+
+
+@app.post("/rag-query/stream", summary="Closed Source LLM + 벡터 DB 스트리밍 질의", tags=["질의 응답"])
+async def rag_query_stream(rag_request: RAGRequest = Body(...)):
+    async def generate():
+        try:
+            yield sse_event("status", {"phase": "retrieving", "message": "관련 자료를 찾고 있어요…"})
+            state = await prepare_rag(rag_request)
+            if not state["context"].strip():
+                result = finish_rag(state, "N/A")
+                yield sse_event("token", {"text": result["answer"]})
+                yield sse_event("done", result)
+                return
+
+            yield sse_event("status", {"phase": "generating", "message": "답변을 작성하고 있어요…"})
+            llm = ChatOpenAI(model=LLM_MODEL, temperature=0.2, timeout=30)
+            parts = []
+            async for chunk in llm.astream([
+                HumanMessage(content=build_prompt(state["context"], state["q"], include_markers=False))
+            ]):
+                text = chunk_text(chunk.content)
+                if text:
+                    parts.append(text)
+                    yield sse_event("token", {"text": text})
+
+            raw = "".join(parts).strip()
+            print(f"[LLM 스트리밍 원본 응답] {raw[:800]}")
+            yield sse_event("done", finish_rag(state, raw))
+        except asyncio.CancelledError:
+            raise
+        except HTTPException as e:
+            yield sse_event("error", {"message": str(e.detail)})
+        except Exception as e:
+            print(f"⚠️ 스트리밍 응답 오류: {e}")
+            yield sse_event("error", {"message": f"LLM 또는 검색 처리 중 오류: {e}"})
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # 실행 명령어 예시:
