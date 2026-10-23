@@ -6,9 +6,9 @@ export default defineConfig({
   plugins: [vue()],
   server: {
     proxy: {
-      '/auth-api': { target: 'http://localhost:8080', rewrite: p => p.replace(/^\/auth-api/, '/api') },
-      '/rag-api': { target: 'http://localhost:8001', rewrite: p => p.replace(/^\/rag-api/, '') },
-      '/voice-api': { target: 'http://localhost:8008', rewrite: p => p.replace(/^\/voice-api/, '') },
+      '/auth-api': { target: process.env.AUTH_API_TARGET || 'http://localhost:8080', rewrite: p => p.replace(/^\/auth-api/, '/api') },
+      '/rag-api': { target: process.env.RAG_API_TARGET || 'http://localhost:8001', rewrite: p => p.replace(/^\/rag-api/, '') },
+      '/voice-api': { target: process.env.VOICE_API_TARGET || 'http://localhost:8008', rewrite: p => p.replace(/^\/voice-api/, '') },
     },
   },
 });

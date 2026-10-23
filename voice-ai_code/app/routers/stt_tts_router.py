@@ -1,3 +1,4 @@
+from app.config import JWT_SECRET
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status, Cookie
 from jose import jwt, JWTError
 import os
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Configuration that must match the Java server
-SECRET_KEY = "RANDOM_SECRET_KEY"
+SECRET_KEY = JWT_SECRET
 ALGORITHM = "HS256"
 ISSUER = "simple-auth-server"
 

@@ -8,12 +8,12 @@ RUN apt-get update \
 WORKDIR /app
 
 # Copy dependencies first to leverage cache
-COPY requirements.txt ./
+COPY requirements-docker.txt ./
 RUN pip install --no-cache-dir --upgrade pip \
- && pip install --no-cache-dir -r requirements.txt
+ && pip install --no-cache-dir -r requirements-docker.txt
 
 # Application source
 COPY . /app
 
 # (Optional) It is recommended to remove --reload in production
-CMD ["uvicorn","app.main:app","--host","0.0.0.0","--port","8008","--reload"]
+CMD ["uvicorn","app.main:app","--host","0.0.0.0","--port","8008"]

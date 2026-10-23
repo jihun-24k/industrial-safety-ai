@@ -1,0 +1,17 @@
+.git
+**/.env
+**/.env.*
+**/.venv
+**/venv
+**/node_modules
+**/dist
+**/__pycache__
+**/.DS_Store
+**/.gradle
+**/build
+**/faiss_db
+**/uploads
+.cache
+.harness
+pipeline_artifacts
+workplace/app/bin

@@ -1,3 +1,4 @@
+from app.config import JWT_SECRET
 from fastapi import APIRouter, Form, Depends, HTTPException, Cookie
 from jose import jwt, JWTError
 from app.services.tts_service import text_to_speech
@@ -6,7 +7,7 @@ import os
 router = APIRouter()
 
 # Configuration that must match the Java server
-SECRET_KEY = "RANDOM_SECRET_KEY"   # Must be identical to Java JwtUtil.SECRET
+SECRET_KEY = JWT_SECRET   # Must be identical to Java JwtUtil.SECRET
 ALGORITHM = "HS256"
 ISSUER = "simple-auth-server"         # Must be identical to Java JwtUtil.ISSUER
 

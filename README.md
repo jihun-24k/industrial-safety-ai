@@ -1,6 +1,16 @@
 # industrial-safety-ai
 RAG 기반 산업안전 매뉴얼 검색, 다국어 음성 질의응답 및 재난 대응을 지원하는 AI 서비스
 
+## 전체 서비스 실행
+
+루트 `.env.example`을 `.env`로 복사한 뒤 `DB_PASSWORD`, `JWT_SECRET`, `OPENAI_API_KEY`를 설정하고 실행합니다.
+
+```bash
+docker compose up -d --build
+```
+
+Vue: http://127.0.0.1:5173/ · [환경 설정·포트 충돌·데이터 보존 안내](docs/DOCKER_COMPOSE.md)
+
 한국어 PDF 데이터 파이프라인의 실행 방법과 검증 범위는 [데이터 파이프라인 안내](docs/DATA_PIPELINE.md)를 참고하세요. 현재는 두 PDF의 개발용 추출, FAISS 구축과 근거 검색 단계이며 서비스 API와의 연결은 후속 작업입니다.
 
 [질문별 답변 검증 노트북](notebooks/safepath_question_validation.ipynb)에서 7개 질문의 근거, 모범답안 초안과 생성 답변을 비교하고 RAGAS로 자동 평가합니다. 검색 정밀도·재현율은 모범답안 초안 기준의 잠정 점수이며, 자료 밖 질문은 별도 보류 루브릭으로 평가합니다. VS Code에서 이 프로젝트의 `.venv/bin/python` 커널을 선택하세요. 실제 답변 생성은 `RUN_LIVE=True`, RAGAS 평가 실행은 `RUN_RAGAS=True`입니다. 기본값은 저장 결과 재사용이며 새 실행에는 API 비용이 발생합니다.

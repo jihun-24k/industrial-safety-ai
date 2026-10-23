@@ -1,3 +1,4 @@
+from app.config import JWT_SECRET
 ##### The following practice code is intended for educational purposes only. For contact : architect@ajou.ac.kr, audit@korea.ac.kr 林圣烨 Ph.D.
 #### This practice code is not a completed commercial version but has been developed for educational purposes; supplementation is required depending on the deployment objective for use as a commercial service.
 
@@ -48,7 +49,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 app = FastAPI()
 
 # Configuration that must match the Java server
-SECRET_KEY = "RANDOM_SECRET_KEY"   # Must be identical to Java JwtUtil.SECRET
+SECRET_KEY = JWT_SECRET   # Must be identical to Java JwtUtil.SECRET
 ALGORITHM = "HS256"
 ISSUER = "simple-auth-server"      # Must be identical to Java JwtUtil.ISSUER
 
