@@ -55,6 +55,23 @@ LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o")
 MAX_DISTANCE = float(os.getenv("RAG_MAX_DISTANCE", "0"))          # 0이면 거리 필터 끔
 RESET_PDF_ON_UPLOAD = os.getenv("RESET_PDF_ON_UPLOAD", "false").lower() == "true"  # true면 업로드마다 교체
 
+# ✅ 조원 데이터 파이프라인(pipeline/) 인덱스 연결
+#   - 인덱스는 프로젝트 루트에서 `python -m pipeline.pdf_pipeline prepare` → `build` 로 만든다
+#   - pipeline_artifacts/current.json 이 있으면 PDF 검색은 이 인덱스를 사용한다
+import sys
+PROJECT_ROOT = BASE_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+try:
+    from pipeline import pdf_pipeline as team_pipeline
+    TEAM_CFG = team_pipeline.config_at(PROJECT_ROOT / "pipeline" / "config.json")
+    USE_TEAM_INDEX = (TEAM_CFG["output_root"] / "current.json").exists()
+    TEAM_EMBEDDER = team_pipeline.embeddings(TEAM_CFG) if USE_TEAM_INDEX else None
+except Exception as e:
+    print(f"⚠️ 팀 파이프라인을 불러오지 못했습니다: {e}")
+    USE_TEAM_INDEX = False
+print("✅ PDF 검색: 팀 파이프라인 인덱스 사용" if USE_TEAM_INDEX else "ℹ️ PDF 검색: faiss_db/pdf 사용")
+
 # ✅ DB 연결 정보
 ASYNC_DB_URL = os.getenv("ASYNC_DB_URL", "mysql+aiomysql://root:password@127.0.0.1:53301/sql_db?charset=utf8mb4")
 engine = create_async_engine(ASYNC_DB_URL)
@@ -218,7 +235,8 @@ async def upload_pdf(file: UploadFile = File(...)):
             reader = PdfReader(tmp_path)
             # 페이지별로 Document를 만들어 출처(문서명·페이지)를 메타데이터로 보존
             page_docs = [
-                Document(page_content=t, metadata={"source": file.filename, "page": i + 1})
+                # 정제: PDF 레이아웃에서 생긴 탭·연속 공백을 공백 하나로
+                Document(page_content=re.sub(r"[ \t]+", " ", t).strip(), metadata={"source": file.filename, "page": i + 1})
                 for i, page in enumerate(reader.pages)
                 if (t := (page.extract_text() or "")).strip()
             ]
@@ -327,19 +345,28 @@ def is_emergency(q: str) -> bool:
 
 def doc_label(doc) -> str:
     m = doc.metadata or {}
-    name = m.get("source") or "업로드 문서"
-    return f"{name} p.{m['page']}" if m.get("page") else str(name)
+    name = m.get("filename") or m.get("source") or "업로드 문서"
+    page = m.get("pdf_page_start") or m.get("page")
+    label = f"{name} p.{page}" if page else str(name)
+    extra = m.get("article_number") or m.get("section_title")
+    if extra:
+        extra = str(extra).strip()
+        label += f" · {extra[:30]}{'…' if len(extra) > 30 else ''}"
+    return label
 
 def build_prompt(context: str, question: str) -> str:
     return (
-        "당신은 산업 현장 안전사고 대응 도우미입니다.\n"
+        "당신은 산업 현장 안전사고 대응 도우미입니다. 아래 [검색 내용]은 안전 매뉴얼에서 찾은 부분입니다.\n"
         "규칙:\n"
-        "- 반드시 아래 [검색 내용]에 근거해서만 한국어로 답하세요.\n"
-        f"- [검색 내용]에 근거가 없으면 다른 말 없이 정확히 'N/A'라고만 답하세요.\n"
-        "- 문서에 없는 수치·절차를 지어내지 마세요.\n"
-        "- 문장 끝에 근거 문서 번호를 괄호로 붙이세요. 예: (문서 2)\n\n"
-        "답변 형식(해당 내용이 문서에 있을 때만 작성):\n"
-        "1. 즉시 조치\n2. 원인 또는 위험요인\n3. 예방 대책\n\n"
+        "- [검색 내용]에 근거해서 한국어로 친절하고 구체적으로 답하세요.\n"
+        "- 질문과 관련된 내용이 일부라도 있으면 그 내용을 정리해서 답하세요. 표·도식에서 뽑힌 끊어진 문장도 의미를 이어서 해석하세요.\n"
+        "- 문서에 없는 수치·절차는 지어내지 마세요.\n"
+        "- 각 문장 끝에 근거 문서 번호를 괄호로 붙이세요. 예: (문서 2)\n"
+        "- 질문과 관련된 내용이 [검색 내용]에 전혀 없을 때만 'N/A' 한 단어로 답하세요.\n\n"
+        "답변 형식:\n"
+        "- 사고가 난 상황을 묻는 질문이면: 1. 즉시 조치 / 2. 원인 또는 위험요인 / 3. 예방 대책\n"
+        "- 기준·방법·수칙을 묻는 질문이면: 핵심 내용을 번호 목록으로\n"
+        "- 문서에 없는 항목은 'N/A'라고 쓰지 말고 아예 빼세요.\n\n"
         f"[검색 내용]\n{context}\n\n"
         f"[질문] {question}\n\n"
         "### ANSWER_START\n<답변>\n### ANSWER_END"
@@ -363,9 +390,10 @@ async def rag_query(rag_request: RAGRequest = Body(...)):
     q = rag_request.prompt.strip()
     emergency = is_emergency(q)
 
-    # 1. 벡터스토어 선택
+    # 1. 벡터스토어 선택 (PDF + 팀 인덱스가 있으면 팀 인덱스 사용)
+    use_team = rag_request.source == "pdf" and USE_TEAM_INDEX
     vectorstore = VECTORSTORE_PDF if rag_request.source == "pdf" else VECTORSTORE_WEB
-    if vectorstore is None:
+    if vectorstore is None and not use_team:
         raise HTTPException(
             status_code=503,
             detail=f"❗ {rag_request.source.upper()} 지식베이스가 준비되지 않았습니다. 먼저 자료를 업로드해 주세요.",
@@ -374,7 +402,17 @@ async def rag_query(rag_request: RAGRequest = Body(...)):
 
     try:
         # 2. 검색 (거리 점수 포함)
-        docs_scores = vectorstore.similarity_search_with_score(q, k=rag_request.top_k)
+        if use_team:
+            # 조원 search(): 물질명 매칭 시 해당 MSDS 페이지로 좁혀 검색 + 문서/페이지/조문 메타데이터
+            result = team_pipeline.search(TEAM_CFG, TEAM_EMBEDDER, q, rag_request.top_k)
+            if result.get("material_filter_applied"):
+                print(f"[팀 검색] 물질 필터 적용: {[m.get('name') for m in result.get('material_matches', [])]}")
+            docs_scores = [
+                (Document(page_content=r["text"], metadata={k: v for k, v in r.items() if k != "text"}), r["distance"])
+                for r in result["results"]
+            ]
+        else:
+            docs_scores = vectorstore.similarity_search_with_score(q, k=rag_request.top_k)
         for i, (doc, score) in enumerate(docs_scores, start=1):
             print(f"[{rag_request.source.upper()} 검색 {i}] 거리={score:.4f}, 출처={doc_label(doc)}, 내용={doc.page_content[:120]!r}")
         if MAX_DISTANCE > 0:  # 선택: 거리 임계값으로 관련 없는 문서 제외
@@ -392,6 +430,7 @@ async def rag_query(rag_request: RAGRequest = Body(...)):
         raw = raw.strip() if isinstance(raw, str) else str(raw).strip()
         print(f"[LLM 원본 응답] {raw[:800]}")
         final = (extract_by_marker(raw) or raw).strip()
+        final = re.sub(r"###\s*ANSWER_(START|END)|<답변>", "", final).strip()   # 자리표시 글자 제거
 
         # 5. LLM이 근거 없다고 판단 → handoff
         if not final or final.upper().startswith("N/A"):
@@ -402,6 +441,13 @@ async def rag_query(rag_request: RAGRequest = Body(...)):
         cited = [int(n) for n in re.findall(r"문서\s*(\d+)", final)]
         used = [docs[n - 1] for n in cited if 1 <= n <= len(docs)] or docs
         sources = list(dict.fromkeys(doc_label(d) for d in used))
+        # (문서 N) → (파일명 p.N) 으로 바꿔서 사용자가 바로 알아보게
+        def to_label(match):
+            nums = [int(n) for n in re.findall(r"\d+", match.group(0))]
+            labels = [doc_label(docs[n - 1]).split(" · ")[0].replace(".pdf", "")
+                      for n in nums if 1 <= n <= len(docs)]
+            return f"({', '.join(dict.fromkeys(labels))})" if labels else ""
+        final = re.sub(r"\(\s*문서\s*\d+(?:\s*,\s*문서\s*\d+)*\s*\)", to_label, final)
         if emergency:
             final = EMERGENCY_LINE + "\n\n" + final
         return AnswerResponse(prompt=q, answer=final, sources=sources, needs_review=emergency, handoff=False)

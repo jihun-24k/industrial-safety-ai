@@ -105,22 +105,25 @@ async function send(text = '') {
   scroll();
 
   try {
-    let answer;
+        let answer, sourceLabel;
     if (props.demo) {
       answer = '이 답변은 화면과 음성 재생을 확인하기 위한 예시입니다. 실제 자료 검색은 수행하지 않았습니다.\n\n로그인 후 질문을 보내면 연결된 자료를 검색해 답변합니다. PDF를 첨부하거나 검색 자료를 선택할 수 있습니다.\n\n답변 아래의 ‘답변 듣기’를 누르면 음성이 재생됩니다.';
     } else {
       const data = await ragApi.query({ prompt, source: source.value });
-      if (typeof data.response !== 'string' || !data.response.trim()) {
+      const text = data.answer ?? data.response;
+      if (typeof text !== 'string' || !text.trim()) {
         throw new Error('답변이 비어 있습니다. 다시 질문해 주세요.');
       }
-      answer = data.response;
+      answer = text;
+      sourceLabel = data.handoff ? '근거 없음 · 안전관리자 확인 필요'
+                  : (data.sources?.length ? '출처: ' + data.sources.join(', ') : null);
     }
 
     chat.messages.push({
       id: crypto.randomUUID(),
       role: 'assistant',
       text: answer,
-      source: props.demo ? '화면 미리보기' : source.value === 'pdf' ? 'PDF 자료 기반' : '웹 자료 기반',
+      source: props.demo ? '화면 미리보기' : sourceLabel || (source.value === 'pdf' ? 'PDF 자료 기반' : '웹 자료 기반'),
     });
   } catch (requestError) {
     error.value = requestError.message;
