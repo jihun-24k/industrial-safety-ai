@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { authApi } from '../api/authApi';
 import BrandLogo from '../components/BrandLogo.vue';
+import SafetyAssistant from '../components/SafetyAssistant.vue';
 
 const emit = defineEmits(['authenticated', 'preview']);
 const username = ref('');
@@ -61,13 +62,7 @@ async function login() {
         <div class="eyebrow">YOUR SAFETY, OUR PRIORITY</div>
         <h1>안전한 하루의 시작,<br>물어보는 것부터.</h1>
         <p>작업 전 궁금한 안전 수칙부터 현장의 작은 질문까지.<br>산업안전 AI 파트너와 함께 확인하세요.</p>
-        <div class="story-illustration" aria-hidden="true">
-          <div class="orbit orbit-one"></div>
-          <div class="orbit orbit-two"></div>
-          <div class="illustration-shield">◇<span>✓</span></div>
-          <div class="floating-note note-one"><span>✓</span> 작업 전 안전 확인</div>
-          <div class="floating-note note-two"><span>◖</span> 듣는 안전 가이드</div>
-        </div>
+        <div class="story-illustration"><SafetyAssistant /></div>
       </div>
       <div class="story-footer">작은 확인이 더 안전한 현장을 만듭니다.</div>
     </section>
@@ -95,7 +90,7 @@ async function login() {
         <button class="preview-button" :disabled="busy" @click="emit('preview')">화면 미리보기 <span>↗</span></button>
         <p class="login-footnote">미리보기에서는 예시 대화와 음성 재생을 체험할 수 있어요.</p>
       </div>
-      <p class="login-copyright">© SAFEMATE · 더 안전한 일상을 함께</p>
+      <p class="login-copyright">© SafeOps · 더 안전한 일상을 함께</p>
     </section>
   </main>
 </template>

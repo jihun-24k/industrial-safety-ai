@@ -1,22 +1,23 @@
 <script setup>
+import BrandLogo from './BrandLogo.vue';
 defineProps({
   demo: { type: Boolean, default: false },
   streaming: { type: Boolean, default: true },
   modeDisabled: { type: Boolean, default: false },
 });
 
-defineEmits(['open-menu', 'update:streaming']);
+defineEmits(['open-menu', 'new-chat', 'update:streaming']);
 </script>
 
 <template>
   <header class="chat-header">
     <div>
       <button class="mobile-menu" aria-label="메뉴 열기" @click="$emit('open-menu')">☰</button>
-      <strong>안전 어시스턴트</strong>
-      <span class="header-separator">/</span>
-      <span class="header-caption">함께 만드는 안전한 현장</span>
+      <BrandLogo @click.prevent="$emit('new-chat')" />
     </div>
     <div class="header-actions">
+      <button class="history-toggle" @click="$emit('open-menu')">상담 기록</button>
+      <span class="language-label">한국어</span>
       <button
         type="button"
         class="stream-toggle"

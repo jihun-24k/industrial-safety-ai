@@ -36,7 +36,7 @@ function handleSignedOut() {
 </script>
 
 <template>
-  <div v-if="checking" class="boot" role="status">세이프메이트를 준비하고 있어요…</div>
+  <div v-if="checking" class="boot" role="status">SafeOps를 준비하고 있어요…</div>
   <LoginPage
     v-else-if="!user"
     @authenticated="handleAuthenticated"
