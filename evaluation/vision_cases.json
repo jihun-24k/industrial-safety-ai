@@ -1,0 +1,51 @@
+{
+  "scope": "Two development fixtures, manually transcribed; not independent test set or all-nine-class validation. Not passed to recognizer.",
+  "cases": [
+    {
+      "pdf_page": 54,
+      "printed_page": 53,
+      "review_status": "mixed_user_review_and_assistant_visual_transcription",
+      "fields": {
+        "physical_state": "고체",
+        "odor": "무취",
+        "color": "백색",
+        "formula": "NaOH",
+        "cas_number": "1310-73-2"
+      },
+      "nfpa": {
+        "health": 3,
+        "flammability": 0,
+        "reactivity": 1,
+        "special_raw": "-"
+      },
+      "codes_left_to_right": [
+        "GHS05",
+        "GHS07"
+      ]
+    },
+    {
+      "pdf_page": 55,
+      "printed_page": 54,
+      "review_status": "mixed_user_review_and_assistant_visual_transcription",
+      "fields": {
+        "physical_state": "기체, 액체",
+        "odor": "자극성 악취",
+        "color": "무색",
+        "formula": "NH3",
+        "cas_number": "7664-41-7"
+      },
+      "nfpa": {
+        "health": 3,
+        "flammability": 1,
+        "reactivity": 0,
+        "special_raw": "-"
+      },
+      "codes_left_to_right": [
+        "GHS02",
+        "GHS06",
+        "GHS08",
+        "GHS05"
+      ]
+    }
+  ]
+}

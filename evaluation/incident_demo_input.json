@@ -1,0 +1,11 @@
+{
+  "scenario_kind": "synthetic_test_not_actual_incident",
+  "substance": "가성소다",
+  "concentration": null,
+  "amount": null,
+  "location": "실험실 (검증용 가상 상황)",
+  "people_exposed": true,
+  "fire_present": false,
+  "institution_scope": "lab_safety_manual_institution_unverified",
+  "accident_classification": null
+}

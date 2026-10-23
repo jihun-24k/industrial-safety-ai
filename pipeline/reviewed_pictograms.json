@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "doc_id": "lab_safety_manual",
+  "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+  "dictionary_sha256": "ddad71215785e0ea04459005a5d97e99602a284a63834106bc096309f5c990a6",
+  "approval_basis": "User confirmed six pictograms by manual labels and authorized ingestion after reviewing canonical mapping.",
+  "pages": [
+    {
+      "pdf_page": 54,
+      "printed_page": 53,
+      "substance": "가성소다(Sodium hydroxide)",
+      "review_status": "user_confirmed",
+      "reviewed_on": "2026-10-23",
+      "review_scope": "pictogram_identity_count_order_only",
+      "response_id": "chatcmpl-EbyVPrgwOmulLFCSlQqJ64j8nr9mj",
+      "vision_result_sha256": "20016f38f1ae6c230fdabbd8c40e28d16dff7e274a27599adbdb29b38debbbea",
+      "icons": [
+        {
+          "region_id": 0,
+          "symbol": "corrosion",
+          "canonical_code": "GHS05",
+          "source_legend_label": "GHS08"
+        },
+        {
+          "region_id": 1,
+          "symbol": "exclamation_mark",
+          "canonical_code": "GHS07",
+          "source_legend_label": "GHS09"
+        }
+      ]
+    },
+    {
+      "pdf_page": 55,
+      "printed_page": 54,
+      "substance": "암모니아(Ammonia)",
+      "review_status": "user_confirmed",
+      "reviewed_on": "2026-10-23",
+      "review_scope": "pictogram_identity_count_order_only",
+      "response_id": "chatcmpl-EbyVRZ9JhExQqeuoOsUb0EWqNYmyb",
+      "vision_result_sha256": "ad930113fea69e60ecb1c1fedf81860b3d1b30b05b5d16355b56efcad68b1a1c",
+      "icons": [
+        {
+          "region_id": 0,
+          "symbol": "flame",
+          "canonical_code": "GHS02",
+          "source_legend_label": "GHS02"
+        },
+        {
+          "region_id": 1,
+          "symbol": "skull_and_crossbones",
+          "canonical_code": "GHS06",
+          "source_legend_label": "GHS03"
+        },
+        {
+          "region_id": 2,
+          "symbol": "health_hazard",
+          "canonical_code": "GHS08",
+          "source_legend_label": "GHS04"
+        },
+        {
+          "region_id": 3,
+          "symbol": "corrosion",
+          "canonical_code": "GHS05",
+          "source_legend_label": "GHS08"
+        }
+      ]
+    }
+  ]
+}

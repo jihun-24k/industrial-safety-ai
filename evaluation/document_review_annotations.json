@@ -1,0 +1,197 @@
+{
+  "schema_version": 1,
+  "source": {
+    "doc_id": "lab_safety_manual",
+    "source_sha256": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1"
+  },
+  "purpose": "Review annotations; only separately approved pictograms are ingested via pipeline/reviewed_pictograms.json. No training.",
+  "page_54": {
+    "review_status": "partial_user_review",
+    "table_fields": {
+      "성상": {
+        "value": "고체",
+        "basis": "user_confirmed"
+      },
+      "냄새": {
+        "value": "무취",
+        "basis": "user_confirmed"
+      },
+      "색상": {
+        "value": "백색",
+        "basis": "assistant_visual_read",
+        "user_review": "pending"
+      },
+      "분자식": {
+        "value": "NaOH",
+        "basis": "user_confirmed"
+      },
+      "CAS번호": {
+        "value": "1310-73-2",
+        "basis": "user_confirmed"
+      }
+    },
+    "nfpa_source_values": {
+      "health": 3,
+      "flammability": 0,
+      "reactivity": 1,
+      "special_raw": "–",
+      "basis": "user_confirmed",
+      "scope": "values transcribed from this manual, not independently verified current chemical classification"
+    },
+    "pictograms": {
+      "count": 2,
+      "count_basis": "user_confirmed",
+      "visual_candidates": [
+        {
+          "symbol": "corrosion",
+          "canonical_ghs_code": "GHS05",
+          "manual_page105_label": "GHS08"
+        },
+        {
+          "symbol": "exclamation_mark",
+          "canonical_ghs_code": "GHS07",
+          "manual_page105_label": "GHS09"
+        }
+      ],
+      "identity_basis": "user_confirmed",
+      "user_review": "confirmed",
+      "reviewed_on": "2026-10-23",
+      "ingestion_scope": "identity_count_order_only"
+    },
+    "printed_page": 53,
+    "substance": "가성소다 / Sodium hydroxide / NaOH",
+    "scope_note": "Latest user image refers to PDF page 55 (printed 54), ammonia; do not apply its color or pictograms to this sodium hydroxide record."
+  },
+  "page_105": {
+    "status": "source_code_conflicts_detected",
+    "canonical_mapping_source": "https://www.safeworkaustralia.gov.au/safety-topic/hazards/chemicals/classifying-chemicals/using-ghs",
+    "mapping": [
+      {
+        "source_label": "GHS01",
+        "symbol": "exploding_bomb",
+        "canonical_code": "GHS01",
+        "code_conflict": false
+      },
+      {
+        "source_label": "GHS02",
+        "symbol": "flame",
+        "canonical_code": "GHS02",
+        "code_conflict": false
+      },
+      {
+        "source_label": "GHS03",
+        "symbol": "skull_and_crossbones",
+        "canonical_code": "GHS06",
+        "code_conflict": true
+      },
+      {
+        "source_label": "GHS04",
+        "symbol": "health_hazard",
+        "canonical_code": "GHS08",
+        "code_conflict": true
+      },
+      {
+        "source_label": "GHS05",
+        "symbol": "environment",
+        "canonical_code": "GHS09",
+        "code_conflict": true
+      },
+      {
+        "source_label": "GHS06",
+        "symbol": "flame_over_circle",
+        "canonical_code": "GHS03",
+        "code_conflict": true
+      },
+      {
+        "source_label": "GHS07",
+        "symbol": "gas_cylinder",
+        "canonical_code": "GHS04",
+        "code_conflict": true
+      },
+      {
+        "source_label": "GHS08",
+        "symbol": "corrosion",
+        "canonical_code": "GHS05",
+        "code_conflict": true
+      },
+      {
+        "source_label": "GHS09",
+        "symbol": "exclamation_mark",
+        "canonical_code": "GHS07",
+        "code_conflict": true
+      }
+    ],
+    "cautions": [
+      "Preserve original labels; never silently overwrite the source.",
+      "The source column titled signal word includes hazard descriptions; store raw heading separately from normalized field.",
+      "Recognizing an icon does not establish every hazard category for the substance."
+    ]
+  },
+  "nfpa_reference": {
+    "url": "https://docinfofiles.nfpa.org/files/AboutTheCodes/704/NFPA704_HC2012_QCard.pdf",
+    "notes": [
+      "NFPA ratings 0 to 4: increasing severity.",
+      "Do not confuse NFPA ratings with GHS hazard categories.",
+      "Dash means source provides no special entry, not absence of all hazards."
+    ]
+  },
+  "page_55": {
+    "printed_page": 54,
+    "substance": "암모니아 / Ammonia / NH3",
+    "review_status": "partial_user_review",
+    "table_fields": {
+      "색상": {
+        "value": "무색",
+        "basis": "user_confirmed_and_source_text"
+      },
+      "분자식": {
+        "value": "NH3",
+        "basis": "source_text_and_attached_image"
+      },
+      "CAS번호": {
+        "value": "7664-41-7",
+        "basis": "source_text_and_attached_image"
+      }
+    },
+    "pictograms": {
+      "count": 4,
+      "basis": "user_confirmed_and_attached_image",
+      "left_to_right": [
+        {
+          "symbol": "flame",
+          "source_legend_label": "GHS02",
+          "canonical_code": "GHS02"
+        },
+        {
+          "symbol": "skull_and_crossbones",
+          "source_legend_label": "GHS03",
+          "canonical_code": "GHS06"
+        },
+        {
+          "symbol": "health_hazard",
+          "source_legend_label": "GHS04",
+          "canonical_code": "GHS08"
+        },
+        {
+          "symbol": "corrosion",
+          "source_legend_label": "GHS08",
+          "canonical_code": "GHS05"
+        }
+      ],
+      "scope": "Observed symbols in supplied manual only; not an independent current SDS classification.",
+      "user_review": "confirmed",
+      "identity_basis": "user_confirmed",
+      "reviewed_on": "2026-10-23",
+      "ingestion_scope": "identity_count_order_only"
+    },
+    "nfpa_source_values": {
+      "health": 3,
+      "flammability": 1,
+      "reactivity": 0,
+      "special_raw": "–",
+      "basis": "source_text_and_attached_image",
+      "user_review": "pending"
+    },
+    "processing_recommendation": "Preserve native text; recover table structure; identify cropped pictograms and link to canonical symbol dictionary; retain provenance and review uncertain cases."
+  }
+}
