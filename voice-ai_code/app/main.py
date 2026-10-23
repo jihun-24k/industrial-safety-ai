@@ -9,6 +9,7 @@ from starlette.staticfiles import StaticFiles
 from jose import jwt, JWTError
 
 from app.routers.stt_router import router as stt_router
+from app.routers.stt_stream_router import router as stt_stream_router
 from app.routers.tts_router import router as tts_router
 from app.routers.stt_tts_router import router as stt_tts_router
 
@@ -187,6 +188,7 @@ def favicon(current_user: dict = Depends(get_current_user)):
 # 8) Router registration (if you want to protect the API with JWT as well, it is recommended to apply Depends(get_current_user) inside the router)
 
 app.include_router(stt_router, prefix="/stt")
+app.include_router(stt_stream_router, prefix="/stt")
 app.include_router(tts_router, prefix="/tts")
 app.include_router(stt_tts_router, prefix="/stt-tts")
 

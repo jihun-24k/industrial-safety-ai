@@ -1,6 +1,11 @@
 import { request } from './client.js';
 
 export const voiceApi = {
+  openStream() {
+    const url = new URL('/voice-api/stt/stream', window.location.href);
+    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    return new WebSocket(url);
+  },
   synthesize(text) {
     return request('/voice-api/tts/', {
       method: 'POST',
