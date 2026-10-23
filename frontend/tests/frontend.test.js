@@ -28,9 +28,10 @@ test('questions always use the existing document source even if a caller passes 
     globalThis.fetch = async (url, options) => {
       assert.equal(url, '/rag-api/rag-query');
       assert.deepEqual(JSON.parse(options.body), {prompt:'질문',source:'pdf',top_k:5});
-      return Response.json({response:'답변'});
+      return Response.json({answer:'답변'});
     };
-    await ragApi.query({prompt:'질문',source:'web'});
+    const result = await ragApi.query({prompt:'질문',source:'web'});
+    assert.equal(result.answer, '답변');
   } finally { globalThis.fetch = original; }
 });
 
