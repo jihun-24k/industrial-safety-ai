@@ -131,7 +131,8 @@ async function send(text = '') {
       answer = '이 답변은 화면과 음성 재생을 확인하기 위한 예시입니다. 실제 자료 검색은 수행하지 않았습니다.\n\n로그인 후 문서에 관해 질문하거나 마이크 버튼으로 음성 질문을 입력할 수 있습니다.\n\n답변 아래의 ‘답변 듣기’를 누르면 음성이 재생됩니다.';
     } else {
       const data = await ragApi.query({ prompt });
-      if (typeof data.response !== 'string' || !data.response.trim()) {
+            const text = data.answer ?? data.response;
+      if (typeof text !== 'string' || !text.trim()) {
         throw new Error('답변이 비어 있습니다. 다시 질문해 주세요.');
       }
       answer = text;
@@ -143,7 +144,7 @@ async function send(text = '') {
       id: crypto.randomUUID(),
       role: 'assistant',
       text: answer,
-      source: props.demo ? '화면 미리보기' : '문서 자료 기반',
+            source: props.demo ? '화면 미리보기' : sourceLabel || '문서 자료 기반',
     });
   } catch (requestError) {
     error.value = requestError.message;
