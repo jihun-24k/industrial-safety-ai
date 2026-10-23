@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.engine import URL
 from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
