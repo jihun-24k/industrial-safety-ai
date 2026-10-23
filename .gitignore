@@ -45,6 +45,10 @@ build/
 *.class
 /workplace/app/bin/
 
+# Frontend dependencies and build output
+node_modules/
+/dist/
+
 # Logs
 *.log
 logs/
