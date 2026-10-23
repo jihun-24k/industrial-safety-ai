@@ -1,3 +1,4 @@
+from app.config import JWT_SECRET
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status, Cookie
 from jose import jwt, JWTError
 import shutil
@@ -9,7 +10,7 @@ from app.services.stt_service import transcribe_audio_file_local, convert_webm_t
 router = APIRouter()
 
 # Configuration that must match the Java server
-SECRET_KEY = "RANDOM_SECRET_KEY"   # Must be identical to Java JwtUtil.SECRET
+SECRET_KEY = JWT_SECRET   # Must be identical to Java JwtUtil.SECRET
 ALGORITHM = "HS256"
 ISSUER = "simple-auth-server"         # Must be identical to Java JwtUtil.ISSUER
 

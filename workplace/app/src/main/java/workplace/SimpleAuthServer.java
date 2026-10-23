@@ -96,8 +96,8 @@ Modification history:
 public class SimpleAuthServer {
 
     // ==== DB CONFIG (modify according to your environment) ==== //
-    private static final String DB_URL = "jdbc:mariadb://localhost:53301/sql_db";
-    private static final String DB_USER = "root";
+    private static final String DB_URL = System.getenv().getOrDefault("DB_URL", "jdbc:mariadb://localhost:53301/sql_db");
+    private static final String DB_USER = System.getenv().getOrDefault("DB_USER", "root");
     private static final String DB_PASSWORD = System.getenv("DB_PASSWORD");
 
     // ==== SESSION STORE ==== //
@@ -118,6 +118,9 @@ public class SimpleAuthServer {
     private static final boolean DEBUG = true;
 
     public static void main(String[] args) throws Exception {
+        if (isBlank(System.getenv("JWT_SECRET"))) {
+            throw new IllegalStateException("JWT_SECRET is required and must match the voice server.");
+        }
         // Load JDBC Driver
         Class.forName("org.mariadb.jdbc.Driver");
 

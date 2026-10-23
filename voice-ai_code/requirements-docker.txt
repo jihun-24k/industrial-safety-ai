@@ -1,0 +1,11 @@
+# Runtime imports only; STT uses CTranslate2, not PyTorch/CUDA.
+fastapi==0.115.12
+uvicorn[standard]==0.35.0
+python-multipart==0.0.20
+python-dotenv==1.1.0
+python-jose[cryptography]==3.3.0
+faster-whisper==1.1.1
+ctranslate2==4.6.0
+numpy==1.26.4
+openai==1.109.1
+requests==2.32.3

@@ -82,7 +82,13 @@ MAX_CONTEXT_DOCS = 12     # LLM에게 넘길 최대 청크 수
 print("✅ 검색 계획 사용" if USE_SEARCH_PLAN else "ℹ️ 검색 계획 끔 (prompts/search_plan.txt 없음 또는 USE_SEARCH_PLAN=false)")
 
 # ✅ DB 연결 정보
-ASYNC_DB_URL = os.getenv("ASYNC_DB_URL", "mysql+aiomysql://root:password@127.0.0.1:53301/sql_db?charset=utf8mb4")
+ASYNC_DB_URL = os.getenv("ASYNC_DB_URL") or (
+    URL.create("mysql+aiomysql", username=os.getenv("DB_USER", "root"),
+               password=os.getenv("DB_PASSWORD"), host=os.environ["DB_HOST"],
+               port=int(os.getenv("DB_PORT", "3306")), database=os.getenv("DB_NAME", "sql_db"),
+               query={"charset": "utf8mb4"})
+    if os.getenv("DB_HOST") else "mysql+aiomysql://root:password@127.0.0.1:53301/sql_db?charset=utf8mb4"
+)
 engine = create_async_engine(ASYNC_DB_URL)
 
 # ✅ FastAPI 인스턴스
