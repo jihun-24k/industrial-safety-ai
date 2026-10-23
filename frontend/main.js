@@ -81,9 +81,9 @@ createApp({
         } else {
           const data = await this.request('/rag-api/rag-query', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, source: this.source, top_k: 5 }) });
           if (typeof data.response !== 'string' || !data.response.trim()) throw new Error('답변이 비어 있습니다. 다시 질문해 주세요.');
-          answer = data.response;
-        }
-        chat.messages.push({ id: crypto.randomUUID(), role: 'assistant', text: answer, source: this.demo ? '화면 미리보기' : this.source === 'pdf' ? 'PDF 자료 기반' : '웹 자료 기반' });
+answer = data.response;
+}
+chat.messages.push({ id: crypto.randomUUID(), role: 'assistant', text: answer, source: this.demo ? '화면 미리보기' : this.source === 'pdf' ? 'PDF 자료 기반' : '웹 자료 기반' });
       } catch (e) { this.error = e.message; this.draft = prompt; }
       finally { this.busy = false; this.scroll(); this.$refs.draft?.focus(); }
     },
