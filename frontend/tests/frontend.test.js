@@ -35,6 +35,62 @@ test('questions always use the existing document source even if a caller passes 
   } finally { globalThis.fetch = original; }
 });
 
+function streamingResponse(parts) {
+  const encoder = new TextEncoder();
+  return new Response(new ReadableStream({
+    start(controller) {
+      for (const part of parts) controller.enqueue(encoder.encode(part));
+      controller.close();
+    },
+  }), {headers:{'Content-Type':'text/event-stream'}});
+}
+
+test('streaming questions append tokens in order and return final sources', async () => {
+  const original=globalThis.fetch;
+  try {
+    globalThis.fetch=async (url,options)=>{
+      assert.equal(url,'/rag-api/rag-query/stream');
+      assert.equal(options.method,'POST');
+      assert.equal(options.credentials,'include');
+      assert.deepEqual(JSON.parse(options.body),{prompt:'질문',source:'pdf',top_k:5});
+      return streamingResponse([
+        'event: status\ndata: {"phase":"retrieving","message":"검색 중"}\n\nevent: token\nda',
+        'ta: {"text":"안전"}\n\nevent: token\ndata: {"text":" 수칙"}\n\n',
+        'event: done\ndata: {"answer":"안전 수칙","sources":["매뉴얼 p.1"],"handoff":false}\n\n',
+      ]);
+    };
+    const statuses=[],tokens=[];
+    const result=await ragApi.queryStream({prompt:'질문'},{
+      onStatus:data=>statuses.push(data.message),onToken:text=>tokens.push(text),
+    });
+    assert.deepEqual(statuses,['검색 중']);
+    assert.deepEqual(tokens,['안전',' 수칙']);
+    assert.equal(result.answer,'안전 수칙');
+    assert.deepEqual(result.sources,['매뉴얼 p.1']);
+  } finally {globalThis.fetch=original;}
+});
+
+test('streaming API error events reject instead of accepting a partial answer', async () => {
+  const original=globalThis.fetch;
+  try {
+    globalThis.fetch=async()=>streamingResponse([
+      'event: token\ndata: {"text":"부분 답변"}\n\n',
+      'event: error\ndata: {"message":"모델 오류"}\n\n',
+    ]);
+    await assert.rejects(ragApi.queryStream({prompt:'질문'}),/모델 오류/);
+  } finally {globalThis.fetch=original;}
+});
+
+test('streaming HTTP validation errors expose the rejected field', async () => {
+  const original=globalThis.fetch;
+  try {
+    globalThis.fetch=async()=>Response.json({detail:[
+      {loc:['body','prompt'],msg:'String should have at least 2 characters'},
+    ]},{status:422});
+    await assert.rejects(ragApi.queryStream({prompt:'x'}),/prompt: String should have at least 2 characters/);
+  } finally {globalThis.fetch=original;}
+});
+
 class Recorder {
   static isTypeSupported(type) { return type.startsWith('audio/webm'); }
   constructor(_stream, options) { this.mimeType=options.mimeType;this.state='inactive'; }

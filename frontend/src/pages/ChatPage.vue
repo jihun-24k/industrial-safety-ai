@@ -27,7 +27,9 @@ const menu = ref(false);
 const speakingId = ref(null);
 const ttsLoading = ref(null);
 const messageList = ref(null);
+const streamingEnabled = ref(true);
 let audio = null;
+let queryController = null;
 
 const examples = [
   '작업 전 안전 점검 항목을 알려줘',
@@ -61,7 +63,7 @@ function toggleVoice() {
   voiceRecorder.start();
 }
 
-onUnmounted(() => { voiceRecorder.cancel(); stopAudio(); });
+onUnmounted(() => { queryController?.abort(); voiceRecorder.cancel(); stopAudio(); });
 
 function scroll() {
   messageList.value?.scrollToBottom();
@@ -125,30 +127,66 @@ async function send(text = '') {
   busy.value = true;
   scroll();
 
+  let assistantMessage = null;
   try {
-        let answer, sourceLabel;
     if (props.demo) {
-      answer = '이 답변은 화면과 음성 재생을 확인하기 위한 예시입니다. 실제 자료 검색은 수행하지 않았습니다.\n\n로그인 후 문서에 관해 질문하거나 마이크 버튼으로 음성 질문을 입력할 수 있습니다.\n\n답변 아래의 ‘답변 듣기’를 누르면 음성이 재생됩니다.';
+      chat.messages.push({
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        text: '이 답변은 화면과 음성 재생을 확인하기 위한 예시입니다. 실제 자료 검색은 수행하지 않았습니다.\n\n로그인 후 문서에 관해 질문하거나 마이크 버튼으로 음성 질문을 입력할 수 있습니다.\n\n답변 아래의 ‘답변 듣기’를 누르면 음성이 재생됩니다.',
+        source: '화면 미리보기',
+      });
     } else {
-      const data = await ragApi.query({ prompt });
+      const placeholder = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        text: '',
+        source: '문서 자료 기반',
+        pending: true,
+        streaming: false,
+        status: '관련 자료를 찾고 있어요…',
+      };
+      chat.messages.push(placeholder);
+      // Vue가 감시하는 proxy를 수정해야 토큰마다 화면이 갱신된다.
+      assistantMessage = chat.messages[chat.messages.length - 1];
+      queryController = new AbortController();
+      const data = streamingEnabled.value
+        ? await ragApi.queryStream({ prompt }, {
+            signal: queryController.signal,
+            onStatus: ({ message }) => {
+              if (assistantMessage.pending && message) assistantMessage.status = message;
+              scroll();
+            },
+            onToken: token => {
+              if (!token) return;
+              assistantMessage.pending = false;
+              assistantMessage.streaming = true;
+              assistantMessage.status = '';
+              assistantMessage.text += token;
+              scroll();
+            },
+          })
+        : await ragApi.query({ prompt }, { signal: queryController.signal });
       if (typeof data.answer !== 'string' || !data.answer.trim()) {
         throw new Error('답변이 비어 있습니다. 다시 질문해 주세요.');
       }
-      answer = data.answer.trim();
-      sourceLabel = data.handoff ? '근거 없음 · 안전관리자 확인 필요'
-                  : (data.sources?.length ? '출처: ' + data.sources.join(', ') : null);
+      assistantMessage.text = data.answer.trim();
+      assistantMessage.pending = false;
+      assistantMessage.streaming = false;
+      assistantMessage.status = '';
+      assistantMessage.source = data.handoff ? '근거 없음 · 안전관리자 확인 필요'
+                              : (data.sources?.length ? '출처: ' + data.sources.join(', ') : '문서 자료 기반');
     }
-
-    chat.messages.push({
-      id: crypto.randomUUID(),
-      role: 'assistant',
-      text: answer,
-      source: props.demo ? '화면 미리보기' : (sourceLabel || '문서 자료 기반'),
-    });
   } catch (requestError) {
+    if (assistantMessage) {
+      const index = chat.messages.indexOf(assistantMessage);
+      if (index !== -1) chat.messages.splice(index, 1);
+    }
+    if (requestError.name === 'AbortError' && queryController?.signal.aborted) return;
     error.value = requestError.message;
     draft.value = prompt;
   } finally {
+    queryController = null;
     busy.value = false;
     scroll();
   }
@@ -233,7 +271,13 @@ async function speak(message) {
     />
 
     <main class="workspace">
-      <ChatHeader :demo="demo" @open-menu="menu = true" />
+      <ChatHeader
+        :demo="demo"
+        :streaming="streamingEnabled"
+        :mode-disabled="controlsDisabled"
+        @update:streaming="streamingEnabled = $event"
+        @open-menu="menu = true"
+      />
       <div v-if="demo" class="demo-banner">화면 미리보기 모드입니다. 답변은 예시이며 실제 자료를 검색하지 않습니다.</div>
       <MessageList
         ref="messageList"
