@@ -2,14 +2,31 @@
 
 Vue 3 + Vite 기반 로그인·채팅 UI입니다. Java·Python 서버 코드는 수정하지 않습니다.
 
-프로젝트 루트에서 실행합니다.
+`frontend` 디렉터리에서 실행합니다.
 
 ```sh
-npm install
+cd frontend
+npm ci
 npm run dev
 ```
 
-`http://127.0.0.1:5174/`로 접속합니다. 진입점은 루트 `index.html` 하나입니다. 이전의 `python -m http.server` 대신 Vite를 사용해야 합니다. 로그인 화면의 **화면 미리보기**는 서버 없이 예시 대화와 브라우저 TTS를 제공합니다. 실제 로그인과 구분하며, 실제 자료 검색이나 업로드를 하지 않습니다.
+`http://127.0.0.1:5173/`로 접속합니다. 진입점은 `frontend/index.html`입니다. 이전의 `python -m http.server` 대신 Vite를 사용해야 합니다. 로그인 화면의 **화면 미리보기**는 서버 없이 예시 대화와 브라우저 TTS를 제공합니다. 실제 로그인과 구분하며, 실제 자료 검색이나 업로드를 하지 않습니다.
+
+## 디렉터리 구조
+
+```text
+frontend/
+├── index.html
+├── package.json
+├── vite.config.js
+└── src/
+    ├── api/          # HTTP 요청 및 서비스별 API 연결
+    ├── components/   # 재사용 가능한 화면 요소
+    ├── pages/        # 로그인·채팅 페이지
+    ├── styles/       # 전역 스타일
+    ├── App.vue       # 인증 상태와 페이지 전환
+    └── main.js       # Vue 진입점
+```
 
 ## 기존 서비스 연결
 

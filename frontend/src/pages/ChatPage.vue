@@ -1,0 +1,241 @@
+<script setup>
+import { computed, ref } from 'vue';
+import { authApi } from '../api/authApi';
+import { ragApi } from '../api/ragApi';
+import { voiceApi } from '../api/voiceApi';
+import ChatComposer from '../components/ChatComposer.vue';
+import ChatHeader from '../components/ChatHeader.vue';
+import ConversationSidebar from '../components/ConversationSidebar.vue';
+import MessageList from '../components/MessageList.vue';
+
+const props = defineProps({
+  user: { type: String, required: true },
+  demo: { type: Boolean, default: false },
+});
+const emit = defineEmits(['signed-out']);
+
+const draft = ref('');
+const busy = ref(false);
+const uploading = ref(false);
+const source = ref('web');
+const error = ref('');
+const notice = ref('');
+const conversations = ref([]);
+const activeId = ref(null);
+const menu = ref(false);
+const speakingId = ref(null);
+const ttsLoading = ref(null);
+const messageList = ref(null);
+let audio = null;
+
+const examples = [
+  '작업 전 안전 점검 항목을 알려줘',
+  '보호구 착용 기준이 궁금해요',
+  '추락 사고 예방 수칙을 설명해줘',
+];
+
+const conversation = computed(() => conversations.value.find((chat) => chat.id === activeId.value));
+const messages = computed(() => conversation.value?.messages || []);
+const controlsDisabled = computed(() => busy.value || uploading.value || !!ttsLoading.value);
+
+function scroll() {
+  messageList.value?.scrollToBottom();
+}
+
+function stopAudio() {
+  audio?.pause();
+  audio = null;
+  window.speechSynthesis?.cancel();
+  speakingId.value = null;
+}
+
+async function logout() {
+  if (controlsDisabled.value) return;
+  try {
+    if (!props.demo) await authApi.logout();
+    stopAudio();
+    emit('signed-out');
+  } catch (logoutError) {
+    error.value = logoutError.message;
+  }
+}
+
+function newChat() {
+  if (controlsDisabled.value) return;
+  stopAudio();
+  activeId.value = null;
+  draft.value = '';
+  error.value = '';
+  notice.value = '';
+  source.value = 'web';
+  menu.value = false;
+}
+
+function selectChat(chat) {
+  if (controlsDisabled.value) return;
+  stopAudio();
+  activeId.value = chat.id;
+  source.value = chat.source;
+  error.value = '';
+  menu.value = false;
+  scroll();
+}
+
+async function send(text = '') {
+  const prompt = (text || draft.value).trim();
+  if (!prompt || busy.value || uploading.value) return;
+
+  if (!conversation.value) {
+    const chat = {
+      id: crypto.randomUUID(),
+      title: prompt.slice(0, 26),
+      source: source.value,
+      messages: [],
+    };
+    conversations.value.unshift(chat);
+    activeId.value = chat.id;
+  }
+
+  const chat = conversation.value;
+  chat.source = source.value;
+  chat.messages.push({ id: crypto.randomUUID(), role: 'user', text: prompt });
+  draft.value = '';
+  error.value = '';
+  busy.value = true;
+  scroll();
+
+  try {
+    let answer;
+    if (props.demo) {
+      answer = '이 답변은 화면과 음성 재생을 확인하기 위한 예시입니다. 실제 자료 검색은 수행하지 않았습니다.\n\n로그인 후 질문을 보내면 연결된 자료를 검색해 답변합니다. PDF를 첨부하거나 검색 자료를 선택할 수 있습니다.\n\n답변 아래의 ‘답변 듣기’를 누르면 음성이 재생됩니다.';
+    } else {
+      const data = await ragApi.query({ prompt, source: source.value });
+      if (typeof data.response !== 'string' || !data.response.trim()) {
+        throw new Error('답변이 비어 있습니다. 다시 질문해 주세요.');
+      }
+      answer = data.response;
+    }
+
+    chat.messages.push({
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      text: answer,
+      source: props.demo ? '화면 미리보기' : source.value === 'pdf' ? 'PDF 자료 기반' : '웹 자료 기반',
+    });
+  } catch (requestError) {
+    error.value = requestError.message;
+    draft.value = prompt;
+  } finally {
+    busy.value = false;
+    scroll();
+  }
+}
+
+async function upload(file) {
+  if (busy.value || uploading.value) return;
+  if (!file.name.toLowerCase().endsWith('.pdf')) {
+    error.value = 'PDF 파일을 선택해 주세요.';
+    return;
+  }
+  if (props.demo) {
+    error.value = '미리보기에서는 파일을 전송하지 않습니다. 실제 로그인 후 첨부해 주세요.';
+    return;
+  }
+
+  uploading.value = true;
+  error.value = '';
+  try {
+    await ragApi.uploadPaper(file);
+    source.value = 'pdf';
+    notice.value = `${file.name} 자료가 준비되었습니다.`;
+  } catch (uploadError) {
+    error.value = uploadError.message;
+  } finally {
+    uploading.value = false;
+  }
+}
+
+async function speak(message) {
+  if (ttsLoading.value) return;
+  if (speakingId.value === message.id) {
+    stopAudio();
+    return;
+  }
+
+  stopAudio();
+  error.value = '';
+  ttsLoading.value = message.id;
+  try {
+    if (props.demo) {
+      if (!window.speechSynthesis) throw new Error('이 브라우저에서는 음성 미리보기를 지원하지 않습니다.');
+      const utterance = new SpeechSynthesisUtterance(message.text);
+      utterance.lang = 'ko-KR';
+      utterance.onend = () => { speakingId.value = null; };
+      utterance.onerror = () => { speakingId.value = null; };
+      speakingId.value = message.id;
+      window.speechSynthesis.speak(utterance);
+    } else {
+      const data = await voiceApi.synthesize(message.text);
+      if (!data.file_path?.startsWith('/uploads/')) throw new Error('음성 파일을 받지 못했습니다.');
+      audio = new Audio(`/voice-api${data.file_path}?t=${Date.now()}`);
+      audio.onended = () => { speakingId.value = null; };
+      audio.onerror = () => {
+        speakingId.value = null;
+        error.value = '음성 파일을 재생하지 못했습니다.';
+      };
+      await audio.play();
+      speakingId.value = message.id;
+    }
+  } catch (speechError) {
+    error.value = speechError.message;
+    stopAudio();
+  } finally {
+    ttsLoading.value = null;
+  }
+}
+</script>
+
+<template>
+  <div class="chat-layout">
+    <ConversationSidebar
+      :user="user"
+      :demo="demo"
+      :conversations="conversations"
+      :active-id="activeId"
+      :open="menu"
+      :disabled="controlsDisabled"
+      @new-chat="newChat"
+      @select-chat="selectChat"
+      @logout="logout"
+      @close="menu = false"
+    />
+
+    <main class="workspace">
+      <ChatHeader :demo="demo" @open-menu="menu = true" />
+      <div v-if="demo" class="demo-banner">화면 미리보기 모드입니다. 답변은 예시이며 실제 자료를 검색하지 않습니다.</div>
+      <MessageList
+        ref="messageList"
+        :messages="messages"
+        :user="user"
+        :busy="busy"
+        :tts-loading="ttsLoading"
+        :speaking-id="speakingId"
+        :examples="examples"
+        @send-example="send"
+        @speak="speak"
+      />
+      <ChatComposer
+        v-model:draft="draft"
+        v-model:source="source"
+        :busy="busy"
+        :uploading="uploading"
+        :error="error"
+        :notice="notice"
+        @send="send()"
+        @upload="upload"
+        @dismiss-error="error = ''"
+        @dismiss-notice="notice = ''"
+      />
+    </main>
+  </div>
+</template>
