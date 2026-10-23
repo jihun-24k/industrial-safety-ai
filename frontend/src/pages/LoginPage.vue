@@ -8,14 +8,39 @@ const username = ref('');
 const password = ref('');
 const busy = ref(false);
 const error = ref('');
+const mode = ref('login');
+const confirmation = ref('');
+const success = ref('');
+
+function switchMode() {
+  if (busy.value) return;
+  mode.value = mode.value === 'login' ? 'signup' : 'login';
+  password.value = '';
+  confirmation.value = '';
+  error.value = '';
+  success.value = '';
+}
 
 async function login() {
   if (busy.value) return;
   busy.value = true;
   error.value = '';
+  success.value = '';
 
   try {
     const normalizedUsername = username.value.trim();
+    if (!normalizedUsername) throw new Error('아이디를 입력해 주세요.');
+    if (mode.value === 'signup') {
+      if (password.value !== confirmation.value) throw new Error('비밀번호가 일치하지 않습니다.');
+      if (password.value !== password.value.trim()) throw new Error('비밀번호 앞뒤에는 공백을 사용할 수 없습니다.');
+      if (new TextEncoder().encode(password.value).length > 72) throw new Error('비밀번호는 UTF-8 기준 72바이트 이내로 입력해 주세요.');
+      await authApi.signup(normalizedUsername, password.value);
+      mode.value = 'login';
+      password.value = '';
+      confirmation.value = '';
+      success.value = '회원가입이 완료되었습니다. 등록한 계정으로 로그인해 주세요.';
+      return;
+    }
     const data = await authApi.login(normalizedUsername, password.value);
     if (!data.ok) throw new Error('아이디와 비밀번호를 확인해 주세요.');
     password.value = '';
@@ -50,16 +75,22 @@ async function login() {
     <section class="login-panel">
       <div class="login-form">
         <span class="section-tag">산업안전 AI 어시스턴트</span>
-        <h2>다시 만나 반가워요</h2>
-        <p class="muted">로그인하고 안전에 대한 대화를 시작하세요.</p>
+        <h2>{{ mode === 'signup' ? '안전한 시작을 함께해요' : '다시 만나 반가워요' }}</h2>
+        <p class="muted">{{ mode === 'signup' ? '계정을 만들고 산업안전 AI와 대화를 시작하세요.' : '로그인하고 안전에 대한 대화를 시작하세요.' }}</p>
         <form @submit.prevent="login">
           <label for="username">아이디</label>
-          <input id="username" v-model="username" autocomplete="username" placeholder="아이디를 입력해 주세요" required :disabled="busy">
+          <input id="username" v-model="username" autocomplete="username" placeholder="아이디를 입력해 주세요" maxlength="100" required :disabled="busy">
           <label for="password">비밀번호</label>
-          <input id="password" v-model="password" type="password" autocomplete="current-password" placeholder="비밀번호를 입력해 주세요" required :disabled="busy">
+          <input id="password" v-model="password" type="password" :autocomplete="mode === 'signup' ? 'new-password' : 'current-password'" placeholder="비밀번호를 입력해 주세요" required :disabled="busy">
+          <template v-if="mode === 'signup'">
+            <label for="confirmation">비밀번호 확인</label>
+            <input id="confirmation" v-model="confirmation" type="password" autocomplete="new-password" placeholder="비밀번호를 다시 입력해 주세요" required :disabled="busy">
+          </template>
           <p v-if="error" class="error" role="alert">{{ error }}</p>
-          <button class="primary login-submit" :disabled="busy">{{ busy ? '로그인 중…' : '로그인' }} <span>→</span></button>
+          <p v-if="success" class="auth-success" role="status">{{success}}</p>
+          <button class="primary login-submit" :disabled="busy">{{ busy ? '처리 중…' : mode === 'signup' ? '회원가입' : '로그인' }} <span>→</span></button>
         </form>
+        <p class="auth-switch">{{mode === 'signup' ? '이미 계정이 있으신가요?' : '처음 방문하셨나요?'}} <button type="button" :disabled="busy" @click="switchMode">{{mode === 'signup' ? '로그인하기' : '회원가입'}}</button></p>
         <div class="divider"><span>먼저 둘러보고 싶다면</span></div>
         <button class="preview-button" :disabled="busy" @click="emit('preview')">화면 미리보기 <span>↗</span></button>
         <p class="login-footnote">미리보기에서는 예시 대화와 음성 재생을 체험할 수 있어요.</p>

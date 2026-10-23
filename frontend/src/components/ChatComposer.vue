@@ -1,21 +1,27 @@
 <script setup>
+import { computed } from 'vue';
+
 const props = defineProps({
   draft: { type: String, default: '' },
-  source: { type: String, default: 'web' },
   busy: { type: Boolean, default: false },
   uploading: { type: Boolean, default: false },
+  voiceState: { type: String, default: 'idle' },
+  ttsLoading: { type: Boolean, default: false },
   error: { type: String, default: '' },
   notice: { type: String, default: '' },
 });
 
 const emit = defineEmits([
   'update:draft',
-  'update:source',
   'send',
   'upload',
+  'voice',
   'dismiss-error',
   'dismiss-notice',
 ]);
+
+const inputDisabled = computed(() => props.busy || props.uploading || props.voiceState !== 'idle' || props.ttsLoading);
+const voiceLabel = computed(() => ({idle:'음성으로 질문하기', requesting:'마이크 권한 확인 중…', recording:'녹음 중지하고 변환', transcribing:'음성을 글로 바꾸는 중…'})[props.voiceState]);
 
 function handleKeydown(event) {
   if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
@@ -42,26 +48,27 @@ function handleFile(event) {
         placeholder="안전에 대해 궁금한 점을 물어보세요…"
         rows="2"
         maxlength="6000"
-        :disabled="busy || uploading"
+        :disabled="inputDisabled"
         @input="$emit('update:draft', $event.target.value)"
         @keydown="handleKeydown"
       ></textarea>
       <div class="composer-tools">
         <div>
           <input ref="pdf" type="file" accept="application/pdf,.pdf" hidden @change="handleFile">
-          <button type="button" class="attach" :disabled="busy || uploading" aria-label="PDF 자료 첨부" title="PDF 자료 첨부" @click="$refs.pdf.click()">＋</button>
+          <button type="button" class="attach" :disabled="inputDisabled" aria-label="PDF 자료 첨부" title="PDF 자료 첨부" @click="$refs.pdf.click()">＋</button>
           <span class="tool-divider"></span>
-          <label class="source-select">
-            <span class="sr-only">검색 자료</span>
-            <select :value="source" :disabled="busy || uploading" @change="$emit('update:source', $event.target.value)">
-              <option value="web">웹 자료</option>
-              <option value="pdf">PDF 자료</option>
-            </select>
-          </label>
+          <span class="document-mode">문서 기반 답변</span>
           <span v-if="uploading" class="upload-label" role="status">PDF 처리 중…</span>
         </div>
-        <button class="send-button" aria-label="질문 보내기" :disabled="!props.draft.trim() || busy || uploading">↑</button>
+        <div class="input-actions">
+          <button type="button" class="microphone-button" :class="{recording:voiceState === 'recording'}" :aria-label="voiceLabel" :title="voiceLabel" :aria-pressed="voiceState === 'recording'" :disabled="busy || uploading || ttsLoading || voiceState === 'requesting' || voiceState === 'transcribing'" @click="$emit('voice')">
+            <svg v-if="voiceState !== 'recording'" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0014 0v-2M12 19v3m-4 0h8"/></svg>
+            <span v-else aria-hidden="true">■</span>
+          </button>
+          <button class="send-button" aria-label="질문 보내기" :disabled="!props.draft.trim() || inputDisabled">↑</button>
+        </div>
       </div>
+      <p v-if="voiceState !== 'idle'" class="voice-status" :class="{recording:voiceState === 'recording'}" role="status">{{voiceState === 'recording' ? '녹음 중 · 마이크 버튼을 다시 누르면 텍스트로 변환해요. 최대 60초' : voiceLabel}}</p>
     </form>
     <p class="composer-disclaimer">AI 답변은 참고용입니다. 실제 작업 시 현장 안전 지침을 우선 확인하세요.</p>
   </div>
