@@ -6,6 +6,11 @@
   "embedding_dimension": 1536,
   "chunk_size": 1000,
   "chunk_overlap": 100,
+  "graph": {
+    "enabled": true,
+    "max_hops": 5,
+    "max_results": 24
+  },
   "documents": [
     {
       "doc_id": "lab_safety_manual",
@@ -35,5 +40,10 @@
     }
   ],
   "reviewed_pictograms_sha256": "02ef156968d7503b267b729e2a7eab108f1e65ece6f5733c136acbd75ff1e440",
-  "structured_safety_sha256": "a2a4d8b1b16846a2ef3d26b33af2740467197b44f50c006c9891cf3cfae378ea"
+  "structured_safety_sha256": "a2a4d8b1b16846a2ef3d26b33af2740467197b44f50c006c9891cf3cfae378ea",
+  "official_web": {
+    "enabled": true,
+    "provider": "naver_webkr_with_cdc_cas_fallback",
+    "max_materials": 2
+  }
 }

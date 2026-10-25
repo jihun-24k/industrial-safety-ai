@@ -66,3 +66,6 @@ output.mp3
 
 # Generated PDF extraction and versioned development indexes
 /pipeline_artifacts/
+
+# Local snapshot report; source notebook remains versioned.
+/notebooks/safepath_improvement_results.ipynb

@@ -59,9 +59,14 @@ def material_catalog(pages):
         cas=re.search(r'\b\d{2,7}-\d{2}-\d\b',text[:600])
         if not match or not cas:continue
         names=[match[1].strip(),match[2].strip(),cas[0]]
-        catalog.append({'name_raw':head,'aliases_from_source':names,'cas_raw':cas[0],
+        entry = {'name_raw':head,'aliases_from_source':names,'cas_raw':cas[0],
                         'pdf_page':p['pdf_page'],'source_sha256':p['source_sha256'],
-                        'identity_status':'source_identifier_candidate_not_independently_verified'})
+                        'identity_status':'source_identifier_candidate_not_independently_verified'}
+        if cas[0] == '7647-01-0':
+            entry['retrieval_aliases'] = ['염산', 'HCl', 'hydrochloric acid']
+            entry['alias_source_url'] = 'https://www.cdc.gov/niosh/npg/npgd0332.html'
+            entry['alias_condition'] = '염산은 염화수소 수용액; 농도·상태별 적용 조건은 별도 확인'
+        catalog.append(entry)
     return catalog
 
 
@@ -69,7 +74,11 @@ def match_materials(query,catalog):
     matches=[]
     for entry in catalog:
         found=[]
-        for alias in entry['aliases_from_source']:
+        # Aliases identify a source candidate, not concentration or physical form.
+        aliases = list(entry['aliases_from_source'])
+        if entry.get('cas_raw') == '7647-01-0':
+            aliases += ['염산', 'HCl', 'hydrochloric acid']
+        for alias in aliases:
             # Reject substring collisions, e.g. 질산 vs 질산암모늄; permit Korean particles.
             pattern=r'(?<![\w])'+re.escape(alias)+r'(?=$|[^\w]|(?:을|를|이|가|은|는|에|의|도|와|과|로|으로)(?:\s|$|[?!.,]))'
             if re.search(pattern,query,re.I):found.append(alias)

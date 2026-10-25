@@ -12,6 +12,7 @@ import uuid
 from urllib.parse import urlparse
 from dotenv import dotenv_values
 import httpx
+from pipeline.retrieval_context import evidence_rows
 from pipeline.pdf_pipeline import ROOT,read_json,write_json
 from pipeline.notebook_evaluation import structural_checks,review_version,summarize_feedback
 
@@ -77,7 +78,7 @@ def make_payload(run,cases,report):
                 'required_points_draft':case['required_points'],'forbidden_claims_draft':case['forbidden_claims'],
                 'evidence_candidates':case['evidence'],'expected_status_draft':case['expected_status'],
                 'review_status':case['review_status'],'reference_author':case['reference_author']},
-            'actual_outputs':{**item['answer'],'retrieved_contexts':item['retrieval']['results']+item['retrieval'].get('linked_results',[])},
+            'actual_outputs':{**item['answer'],'retrieved_contexts':evidence_rows(item['retrieval'])},
             'evaluation_scores':feedback_scores(score),
             'start_time':cursor.isoformat(),'end_time':end.isoformat(),'run_name':item['id'],
             'run_metadata':{'case_id':item['id'],'difficulty':case['difficulty'],'reference_status':case['review_status'],
