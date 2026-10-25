@@ -1,8 +1,9 @@
 #### 다음 실습 코드는 학습 목적으로만 사용 바랍니다. 문의 : audit@korea.ac.kr 임성열 Ph.D.
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Query
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.engine import URL
+from sqlalchemy import text
 from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
@@ -12,7 +13,7 @@ from pydantic import BaseModel, Field
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from pypdf import PdfReader
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 # 패키지는 저자 업데이트에 맞춰 해당 버전으로 맞추는 것을 권장
 # 직접 저자의 site-packages/패키지명/을 직접 수정하는 것은 추천하지 않음
@@ -35,6 +36,9 @@ import re
 import json
 import asyncio
 import tempfile
+import uuid
+import httpx
+import tiktoken
 from datetime import datetime, UTC
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -91,6 +95,10 @@ ASYNC_DB_URL = os.getenv("ASYNC_DB_URL") or (
     if os.getenv("DB_HOST") else "mysql+aiomysql://root:password@127.0.0.1:53301/sql_db?charset=utf8mb4"
 )
 engine = create_async_engine(ASYNC_DB_URL)
+AUTH_CHECK_URL = os.getenv("AUTH_CHECK_URL", "http://127.0.0.1:8080/api/auth/check")
+HISTORY_TOKEN_BUDGET = int(os.getenv("HISTORY_TOKEN_BUDGET", "6000"))
+RECENT_HISTORY_TOKEN_BUDGET = int(os.getenv("RECENT_HISTORY_TOKEN_BUDGET", "3000"))
+SUMMARY_TOKEN_BUDGET = 1500
 
 # ✅ FastAPI 인스턴스
 app = FastAPI(
@@ -108,6 +116,49 @@ app.add_middleware(
                    "http://localhost:8001","*"],
     allow_methods=["*"], allow_headers=["*"], allow_credentials=True,
 )
+
+CHAT_SCHEMA = (
+    """
+    CREATE TABLE IF NOT EXISTS chat_conversations (
+      id CHAR(36) NOT NULL,
+      owner_username VARCHAR(100) NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      summary LONGTEXT NULL,
+      summary_through_message_id BIGINT UNSIGNED NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_chat_conversations_owner_updated (owner_username, updated_at),
+      CONSTRAINT fk_chat_conversations_owner FOREIGN KEY (owner_username)
+        REFERENCES users (username) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      conversation_id CHAR(36) NOT NULL,
+      role VARCHAR(16) NOT NULL,
+      text LONGTEXT NOT NULL,
+      sources JSON NULL,
+      needs_review BOOLEAN NOT NULL DEFAULT FALSE,
+      handoff BOOLEAN NOT NULL DEFAULT FALSE,
+      clarifying_questions JSON NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_chat_messages_conversation_id (conversation_id, id),
+      CONSTRAINT fk_chat_messages_conversation FOREIGN KEY (conversation_id)
+        REFERENCES chat_conversations (id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """,
+)
+
+
+@app.on_event("startup")
+async def create_chat_tables():
+    """기존 MariaDB 볼륨에도 대화 저장용 테이블을 안전하게 추가한다."""
+    async with engine.begin() as connection:
+        for statement in CHAT_SCHEMA:
+            await connection.execute(text(statement))
 
 # ✅ 전역 벡터 저장소
 VECTORSTORE_WEB = None
@@ -292,6 +343,7 @@ class RAGRequest(BaseModel):
     prompt: str = Field(default=..., min_length=2, max_length=6000, description="질문 프롬프트")
     source: Literal["web", "pdf"] = Field(default=..., description="web | pdf")
     top_k: int = Field(default=5, ge=1, le=20, description="검색할 결과 수 (기본값 5)")
+    conversation_id: Optional[str] = Field(default=None, max_length=36)
 
     class Config:
         validate_by_name = True
@@ -305,6 +357,268 @@ class AnswerResponse(BaseModel):
     handoff: bool = False        # 근거 없음 → 답변 대신 담당자에게 넘김
     search_queries: List[str] = []        # 검색 계획으로 만든 검색어 (확인·디버깅용)
     clarifying_questions: List[str] = []  # 판단에 필요한 추가 질문 (검색 계획이 제안)
+    conversation_id: str
+    title: str
+
+
+def _json_value(value, default):
+    if value is None:
+        return default
+    if isinstance(value, (list, dict)):
+        return value
+    try:
+        return json.loads(value)
+    except (TypeError, json.JSONDecodeError):
+        return default
+
+
+async def authenticated_username(request: Request) -> str:
+    cookie = request.headers.get("cookie")
+    if not cookie:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            response = await client.get(AUTH_CHECK_URL, headers={"cookie": cookie})
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=503, detail="인증 서비스를 사용할 수 없습니다.") from exc
+    if response.status_code in (401, 403):
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+    if not response.is_success:
+        raise HTTPException(status_code=503, detail="인증 서비스를 사용할 수 없습니다.")
+    try:
+        username = response.json().get("username")
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail="인증 서비스 응답이 올바르지 않습니다.") from exc
+    if not username:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+    return str(username)
+
+
+async def _owned_conversation(connection, conversation_id: str, username: str):
+    result = await connection.execute(text("""
+        SELECT id, title, summary, summary_through_message_id, created_at, updated_at
+        FROM chat_conversations
+        WHERE id = :conversation_id AND owner_username = :username
+    """), {"conversation_id": conversation_id, "username": username})
+    return result.mappings().first()
+
+
+@app.get("/conversations", tags=["대화"])
+async def list_conversations(request: Request):
+    username = await authenticated_username(request)
+    async with engine.connect() as connection:
+        result = await connection.execute(text("""
+            SELECT id, title, created_at, updated_at
+            FROM chat_conversations
+            WHERE owner_username = :username
+            ORDER BY updated_at DESC, id DESC
+        """), {"username": username})
+        return [dict(row) for row in result.mappings()]
+
+
+@app.get("/conversations/{conversation_id}/messages", tags=["대화"])
+async def get_conversation_messages(conversation_id: str, request: Request):
+    username = await authenticated_username(request)
+    async with engine.connect() as connection:
+        conversation = await _owned_conversation(connection, conversation_id, username)
+        if not conversation:
+            raise HTTPException(status_code=404, detail="대화를 찾을 수 없습니다.")
+        result = await connection.execute(text("""
+            SELECT id, role, text, sources, needs_review, handoff,
+                   clarifying_questions, created_at
+            FROM chat_messages
+            WHERE conversation_id = :conversation_id
+            ORDER BY id ASC
+        """), {"conversation_id": conversation_id})
+        messages = []
+        for row in result.mappings():
+            item = dict(row)
+            item["sources"] = _json_value(item["sources"], [])
+            item["clarifying_questions"] = _json_value(item["clarifying_questions"], [])
+            item["needs_review"] = bool(item["needs_review"])
+            item["handoff"] = bool(item["handoff"])
+            messages.append(item)
+        return {"conversation": dict(conversation), "messages": messages}
+
+
+_TOKEN_ENCODER = tiktoken.get_encoding("cl100k_base")
+
+
+def _message_tokens(message: dict) -> int:
+    return len(_TOKEN_ENCODER.encode(message.get("content", ""))) + 4
+
+
+def _text_tokens(value: str | None) -> int:
+    return len(_TOKEN_ENCODER.encode(value or ""))
+
+
+def _bounded_summary(value: str | None) -> str | None:
+    if not value:
+        return value
+    tokens = _TOKEN_ENCODER.encode(value)
+    return _TOKEN_ENCODER.decode(tokens[:SUMMARY_TOKEN_BUDGET])
+
+
+def complete_turns(messages: list[dict]) -> list[list[dict]]:
+    """완성된 user/assistant 쌍만 문맥 압축 대상으로 삼는다."""
+    turns, pending = [], None
+    for message in messages:
+        if message["role"] == "user":
+            pending = message
+        elif message["role"] == "assistant" and pending is not None:
+            turns.append([pending, message])
+            pending = None
+    return turns
+
+
+def split_history_for_summary(messages: list[dict], budget: int = HISTORY_TOKEN_BUDGET,
+                              recent_budget: int = RECENT_HISTORY_TOKEN_BUDGET,
+                              summary_tokens: int = 0):
+    turns = complete_turns(messages)
+    if summary_tokens + sum(_message_tokens(m) for turn in turns for m in turn) <= budget:
+        return [], turns
+    available_recent = min(recent_budget, max(0, budget - max(summary_tokens, SUMMARY_TOKEN_BUDGET)))
+    recent, used = [], 0
+    for turn in reversed(turns):
+        cost = sum(_message_tokens(m) for m in turn)
+        if used + cost > available_recent:
+            break
+        recent.insert(0, turn)
+        used += cost
+    old_count = len(turns) - len(recent)
+    return turns[:old_count], recent
+
+
+def contextual_search_question(question: str, summary: str | None, messages: list[dict],
+                               limit_chars: int = 4000) -> str:
+    prior_users = [m["content"] for m in messages if m["role"] == "user"][-6:]
+    parts = ([f"이전 대화 요약: {summary}"] if summary else [])
+    parts += [f"이전 사용자 질문: {content}" for content in prior_users]
+    parts.append(f"현재 질문: {question}")
+    return "\n".join(parts)[-limit_chars:]
+
+
+def history_messages(summary: str | None, turns: list[list[dict]]):
+    messages = []
+    if summary:
+        messages.append(SystemMessage(content=(
+            "다음은 이전 대화의 요약입니다. 대화 맥락으로만 사용하고 안전 근거로 인용하지 마세요.\n" + summary
+        )))
+    for turn in turns:
+        messages.extend([HumanMessage(content=turn[0]["content"]), AIMessage(content=turn[1]["content"])])
+    return messages
+
+
+async def _summarize_turns(existing_summary: str | None, turns: list[list[dict]]) -> str:
+    transcript = "\n".join(
+        f"{message['role']}: {message['content']}" for turn in turns for message in turn
+    )
+    prompt = (
+        "산업안전 대화의 사실, 사용자 상황, 이미 안내한 내용을 한국어로 간결하게 요약하세요. "
+        "추측하거나 새로운 안전 근거를 추가하지 마세요.\n"
+        f"기존 요약:\n{existing_summary or '(없음)'}\n\n추가 대화:\n{transcript}"
+    )
+    llm = ChatOpenAI(model=LLM_MODEL, temperature=0, timeout=30)
+    response = await asyncio.to_thread(llm.invoke, [HumanMessage(content=prompt)])
+    return _bounded_summary(chunk_text(response.content).strip()) or ""
+
+
+async def prepare_chat(username: str, rag_request: RAGRequest) -> dict:
+    conversation_id = rag_request.conversation_id
+    if not conversation_id:
+        return {
+            "conversation_id": str(uuid.uuid4()), "title": rag_request.prompt.strip()[:60],
+            "summary": None, "turns": [], "search_question": rag_request.prompt.strip(), "is_new": True,
+            "pending_summary": None, "pending_summary_cursor": None,
+        }
+    async with engine.connect() as connection:
+        conversation = await _owned_conversation(connection, conversation_id, username)
+        if not conversation:
+            raise HTTPException(status_code=404, detail="대화를 찾을 수 없습니다.")
+        result = await connection.execute(text("""
+            SELECT id, role, text AS content FROM chat_messages
+            WHERE conversation_id = :conversation_id
+              AND (:cursor IS NULL OR id > :cursor)
+            ORDER BY id ASC
+        """), {"conversation_id": conversation_id, "cursor": conversation["summary_through_message_id"]})
+        unsummarized = [dict(row) for row in result.mappings()]
+
+    stored_summary = conversation["summary"]
+    summary = _bounded_summary(stored_summary)
+    pending_summary = None
+    pending_summary_cursor = None
+    old_turns, recent_turns = split_history_for_summary(
+        unsummarized, summary_tokens=_text_tokens(summary))
+    if old_turns:
+        try:
+            new_summary = await _summarize_turns(summary, old_turns)
+            if new_summary:
+                summary = new_summary
+                pending_summary = new_summary
+                pending_summary_cursor = old_turns[-1][-1]["id"]
+        except HTTPException:
+            raise
+        except Exception as exc:
+            print(f"⚠️ 대화 요약 실패, 기존 요약과 최근 대화로 계속합니다: {exc}")
+
+    recent_messages = [message for turn in recent_turns for message in turn]
+    return {
+        "conversation_id": conversation_id, "title": conversation["title"], "summary": summary,
+        "turns": recent_turns,
+        "search_question": contextual_search_question(rag_request.prompt.strip(), summary, recent_messages),
+        "is_new": False, "pending_summary": pending_summary,
+        "pending_summary_cursor": pending_summary_cursor,
+    }
+
+
+async def save_turn(username: str, chat: dict, result: dict):
+    """완성된 최종 결과 하나만 사용자/assistant 쌍으로 원자적으로 저장한다."""
+    async with engine.begin() as connection:
+        if chat["is_new"]:
+            await connection.execute(text("""
+                INSERT INTO chat_conversations (id, owner_username, title)
+                VALUES (:id, :username, :title)
+            """), {"id": chat["conversation_id"], "username": username, "title": chat["title"]})
+        else:
+            owned = await _owned_conversation(connection, chat["conversation_id"], username)
+            if not owned:
+                raise HTTPException(status_code=404, detail="대화를 찾을 수 없습니다.")
+        if chat.get("pending_summary"):
+            await connection.execute(text("""
+                UPDATE chat_conversations
+                SET summary = :summary, summary_through_message_id = :cutoff
+                WHERE id = :conversation_id AND owner_username = :username
+                  AND (summary_through_message_id IS NULL OR summary_through_message_id < :cutoff)
+            """), {"summary": chat["pending_summary"], "cutoff": chat["pending_summary_cursor"],
+                   "conversation_id": chat["conversation_id"], "username": username})
+        await connection.execute(text("""
+            INSERT INTO chat_messages (conversation_id, role, text)
+            VALUES (:conversation_id, 'user', :content)
+        """), {"conversation_id": chat["conversation_id"], "content": result["prompt"]})
+        await connection.execute(text("""
+            INSERT INTO chat_messages
+              (conversation_id, role, text, sources, needs_review, handoff, clarifying_questions)
+            VALUES
+              (:conversation_id, 'assistant', :content, :sources, :needs_review, :handoff, :clarifying_questions)
+        """), {
+            "conversation_id": chat["conversation_id"], "content": result["answer"],
+            "sources": json.dumps(result["sources"], ensure_ascii=False),
+            "needs_review": result["needs_review"], "handoff": result["handoff"],
+            "clarifying_questions": json.dumps(result["clarifying_questions"], ensure_ascii=False),
+        })
+        await connection.execute(text("""
+            UPDATE chat_conversations SET updated_at = CURRENT_TIMESTAMP
+            WHERE id = :conversation_id AND owner_username = :username
+        """), {"conversation_id": chat["conversation_id"], "username": username})
+
+
+async def finalize_turn(request: Request, username: str, chat: dict, state: dict, raw: str) -> dict:
+    result = finish_rag(state, raw)
+    result.update(conversation_id=chat["conversation_id"], title=chat["title"])
+    if await request.is_disconnected():
+        raise asyncio.CancelledError
+    await save_turn(username, chat, result)
+    return result
 
 # ✅ RAG 기반 질의 응답 처리
 from fastapi import Body
@@ -522,7 +836,7 @@ def make_context(docs, limit_chars: int = 12000) -> str:
         total += len(excerpt)
     return "\n\n".join(chunks)
 
-async def prepare_rag(rag_request: RAGRequest) -> dict:
+async def prepare_rag(rag_request: RAGRequest, search_question: str | None = None) -> dict:
     """공통 검색 단계. 일반 JSON 응답과 스트리밍 응답이 같은 근거를 사용하게 한다."""
     q = rag_request.prompt.strip()
     emergency = is_emergency(q)
@@ -533,8 +847,9 @@ async def prepare_rag(rag_request: RAGRequest) -> dict:
             status_code=503,
             detail=f"❗ {rag_request.source.upper()} 지식베이스가 준비되지 않았습니다. 먼저 자료를 업로드해 주세요.",
         )
-    plan = await asyncio.to_thread(make_search_plan, q) if (USE_SEARCH_PLAN and is_incident(q)) else None
-    queries = [(None, q)]
+    retrieval_q = search_question or q
+    plan = await asyncio.to_thread(make_search_plan, retrieval_q) if (USE_SEARCH_PLAN and is_incident(q)) else None
+    queries = [(None, retrieval_q)]
     if plan:
         queries += [(it.get("category"), it["query"]) for it in plan["search_plan"][:MAX_PLAN_QUERIES]
                     if isinstance(it, dict) and it.get("query")]
@@ -619,18 +934,22 @@ def sse_event(event: str, data: dict) -> str:
 
 
 @app.post("/rag-query", response_model=AnswerResponse, summary="Closed Source LLM + 벡터 DB 질의", tags=["질의 응답"])
-async def rag_query(rag_request: RAGRequest = Body(...)):
+async def rag_query(request: Request, rag_request: RAGRequest = Body(...)):
     try:
-        state = await prepare_rag(rag_request)
+        username = await authenticated_username(request)
+        chat = await prepare_chat(username, rag_request)
+        state = await prepare_rag(rag_request, chat["search_question"])
         if not state["context"].strip():
-            return AnswerResponse(**finish_rag(state, "N/A"))
-        llm = ChatOpenAI(model=LLM_MODEL, temperature=0.2, timeout=30)
-        message = await asyncio.to_thread(
-            llm.invoke, [HumanMessage(content=build_prompt(state["context"], state["q"]))]
-        )
-        raw = chunk_text(message.content).strip()
-        print(f"[LLM 원본 응답] {raw[:800]}")
-        return AnswerResponse(**finish_rag(state, raw))
+            raw = "N/A"
+        else:
+            llm = ChatOpenAI(model=LLM_MODEL, temperature=0.2, timeout=30)
+            messages = history_messages(chat["summary"], chat["turns"])
+            messages.append(HumanMessage(content=build_prompt(state["context"], state["q"])))
+            message = await asyncio.to_thread(llm.invoke, messages)
+            raw = chunk_text(message.content).strip()
+            print(f"[LLM 원본 응답] {raw[:800]}")
+        result = await finalize_turn(request, username, chat, state, raw)
+        return AnswerResponse(**result)
     except HTTPException:
         raise
     except Exception as e:
@@ -638,13 +957,16 @@ async def rag_query(rag_request: RAGRequest = Body(...)):
 
 
 @app.post("/rag-query/stream", summary="Closed Source LLM + 벡터 DB 스트리밍 질의", tags=["질의 응답"])
-async def rag_query_stream(rag_request: RAGRequest = Body(...)):
+async def rag_query_stream(request: Request, rag_request: RAGRequest = Body(...)):
+    username = await authenticated_username(request)
+    chat = await prepare_chat(username, rag_request)
+
     async def generate():
         try:
             yield sse_event("status", {"phase": "retrieving", "message": "관련 자료를 찾고 있어요…"})
-            state = await prepare_rag(rag_request)
+            state = await prepare_rag(rag_request, chat["search_question"])
             if not state["context"].strip():
-                result = finish_rag(state, "N/A")
+                result = await finalize_turn(request, username, chat, state, "N/A")
                 yield sse_event("token", {"text": result["answer"]})
                 yield sse_event("done", result)
                 return
@@ -652,9 +974,10 @@ async def rag_query_stream(rag_request: RAGRequest = Body(...)):
             yield sse_event("status", {"phase": "generating", "message": "답변을 작성하고 있어요…"})
             llm = ChatOpenAI(model=LLM_MODEL, temperature=0.2, timeout=30)
             parts = []
-            async for chunk in llm.astream([
-                HumanMessage(content=build_prompt(state["context"], state["q"], include_markers=False))
-            ]):
+            messages = history_messages(chat["summary"], chat["turns"])
+            messages.append(HumanMessage(content=build_prompt(
+                state["context"], state["q"], include_markers=False)))
+            async for chunk in llm.astream(messages):
                 text = chunk_text(chunk.content)
                 if text:
                     parts.append(text)
@@ -662,7 +985,8 @@ async def rag_query_stream(rag_request: RAGRequest = Body(...)):
 
             raw = "".join(parts).strip()
             print(f"[LLM 스트리밍 원본 응답] {raw[:800]}")
-            yield sse_event("done", finish_rag(state, raw))
+            result = await finalize_turn(request, username, chat, state, raw)
+            yield sse_event("done", result)
         except asyncio.CancelledError:
             raise
         except HTTPException as e:

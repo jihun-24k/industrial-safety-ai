@@ -53,6 +53,7 @@ services:
       DB_USER: safety
       DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in the root .env}
       DB_NAME: sql_db
+      AUTH_CHECK_URL: http://auth:8080/api/auth/check
       PYTHONPATH: /app
     ports:
       - "127.0.0.1:${RAG_PORT:-8001}:8001"
@@ -61,6 +62,8 @@ services:
       - ./pipeline_artifacts:/app/pipeline_artifacts
     depends_on:
       mariadb:
+        condition: service_healthy
+      auth:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/openapi.json', timeout=5)"]
