@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, onUnmounted } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { authApi } from '../api/authApi';
 import { ragApi } from '../api/ragApi';
 import { voiceApi } from '../api/voiceApi';
@@ -24,6 +24,7 @@ const error = ref('');
 const notice = ref('');
 const conversations = ref([]);
 const activeId = ref(null);
+const pendingConversation = ref(null);
 const menu = ref(false);
 const speakingId = ref(null);
 const ttsLoading = ref(null);
@@ -38,7 +39,7 @@ const examples = [
   '사람에게 노출됐어요',
 ];
 
-const conversation = computed(() => conversations.value.find((chat) => chat.id === activeId.value));
+const conversation = computed(() => pendingConversation.value || conversations.value.find((chat) => chat.id === activeId.value));
 const messages = computed(() => conversation.value?.messages || []);
 const controlsDisabled = computed(() => busy.value || uploading.value || !!ttsLoading.value || voiceState.value !== 'idle');
 
@@ -75,6 +76,20 @@ function toggleVoice() {
 
 onUnmounted(() => { queryController?.abort(); voiceRecorder.cancel(); stopAudio(); });
 
+onMounted(async () => {
+  if (props.demo) return;
+  busy.value = true;
+  try {
+    conversations.value = await ragApi.listConversations();
+    if (conversations.value.length) await loadConversation(conversations.value[0]);
+  } catch (loadError) {
+    error.value = loadError.message;
+  } finally {
+    busy.value = false;
+    scroll();
+  }
+});
+
 function scroll() {
   messageList.value?.scrollToBottom();
 }
@@ -101,19 +116,40 @@ function newChat() {
   if (controlsDisabled.value) return;
   stopAudio();
   activeId.value = null;
+  pendingConversation.value = null;
   draft.value = '';
   error.value = '';
   notice.value = '';
   menu.value = false;
 }
 
-function selectChat(chat) {
+async function loadConversation(chat) {
+  const restored = await ragApi.getConversationMessages(chat.id);
+  const index = conversations.value.findIndex(item => item.id === chat.id);
+  if (index !== -1) conversations.value[index] = restored;
+  activeId.value = restored.id;
+  pendingConversation.value = null;
+}
+
+async function selectChat(chat) {
   if (controlsDisabled.value) return;
   stopAudio();
-  activeId.value = chat.id;
   error.value = '';
   menu.value = false;
-  scroll();
+  if (props.demo) {
+    activeId.value = chat.id;
+    scroll();
+    return;
+  }
+  busy.value = true;
+  try {
+    await loadConversation(chat);
+  } catch (loadError) {
+    error.value = loadError.message;
+  } finally {
+    busy.value = false;
+    scroll();
+  }
 }
 
 async function send(text = '') {
@@ -122,16 +158,21 @@ async function send(text = '') {
 
   if (!conversation.value) {
     const chat = {
-      id: crypto.randomUUID(),
+      id: props.demo ? crypto.randomUUID() : null,
       title: prompt.slice(0, 26),
       messages: [],
     };
-    conversations.value.unshift(chat);
-    activeId.value = chat.id;
+    if (props.demo) {
+      conversations.value.unshift(chat);
+      activeId.value = chat.id;
+    } else {
+      pendingConversation.value = chat;
+    }
   }
 
   const chat = conversation.value;
-  chat.messages.push({ id: crypto.randomUUID(), role: 'user', text: prompt });
+  const userMessage = { id: crypto.randomUUID(), role: 'user', text: prompt };
+  chat.messages.push(userMessage);
   draft.value = '';
   error.value = '';
   busy.value = true;
@@ -164,8 +205,9 @@ async function send(text = '') {
       // Vue가 감시하는 proxy를 수정해야 토큰마다 화면이 갱신된다.
       assistantMessage = chat.messages[chat.messages.length - 1];
       queryController = new AbortController();
+      const request = { prompt, conversationId: chat.id };
       const data = streamingEnabled.value
-        ? await ragApi.queryStream({ prompt }, {
+        ? await ragApi.queryStream(request, {
             signal: queryController.signal,
             onStatus: ({ message }) => {
               if (assistantMessage.pending && message) assistantMessage.status = message;
@@ -180,9 +222,13 @@ async function send(text = '') {
               scroll();
             },
           })
-        : await ragApi.query({ prompt }, { signal: queryController.signal });
+        : await ragApi.query(request, { signal: queryController.signal });
       if (typeof data.answer !== 'string' || !data.answer.trim()) {
         throw new Error('답변이 비어 있습니다. 다시 질문해 주세요.');
+      }
+      if (typeof data.conversation_id !== 'string' || !data.conversation_id
+          || typeof data.title !== 'string' || !data.title) {
+        throw new Error('대화 정보를 받지 못했습니다. 다시 질문해 주세요.');
       }
       assistantMessage.sources = Array.isArray(data.sources) ? data.sources : [];
       assistantMessage.needsReview = data.needs_review === true;
@@ -194,15 +240,25 @@ async function send(text = '') {
       assistantMessage.status = '';
       assistantMessage.source = data.handoff ? '근거 없음 · 안전관리자 확인 필요'
                               : (data.sources?.length ? '출처: ' + data.sources.join(', ') : '문서 자료 기반');
+      chat.id = data.conversation_id;
+      chat.title = data.title;
+      const index = conversations.value.indexOf(chat);
+      if (index !== -1) conversations.value.splice(index, 1);
+      conversations.value.unshift(chat);
+      activeId.value = chat.id;
+      pendingConversation.value = null;
     }
   } catch (requestError) {
     if (assistantMessage) {
       const index = chat.messages.indexOf(assistantMessage);
       if (index !== -1) chat.messages.splice(index, 1);
     }
+    const userIndex = chat.messages.indexOf(userMessage);
+    if (userIndex !== -1) chat.messages.splice(userIndex, 1);
+    if (pendingConversation.value === chat) pendingConversation.value = null;
+    draft.value = prompt;
     if (requestError.name === 'AbortError' && queryController?.signal.aborted) return;
     error.value = requestError.message;
-    draft.value = prompt;
   } finally {
     queryController = null;
     busy.value = false;

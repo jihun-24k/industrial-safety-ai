@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { authApi } from '../src/api/authApi.js';
-import { ragApi } from '../src/api/ragApi.js';
+import { mapStoredMessage, ragApi } from '../src/api/ragApi.js';
 import { voiceApi } from '../src/api/voiceApi.js';
 import { createVoiceRecorder } from '../src/utils/voiceRecorder.js';
 
@@ -35,6 +35,61 @@ test('questions always use the existing document source even if a caller passes 
   } finally { globalThis.fetch = original; }
 });
 
+test('conversation APIs restore the newest list and map stored message metadata', async () => {
+  const original = globalThis.fetch;
+  try {
+    const requests = [];
+    globalThis.fetch = async (url, options) => {
+      requests.push([url, options]);
+      if (url === '/rag-api/conversations') {
+        return Response.json([
+          {id:'newest',title:'최신 대화',created_at:'2026-10-25T10:00:00',updated_at:'2026-10-25T11:00:00'},
+          {id:'older',title:'이전 대화',created_at:'2026-10-24T10:00:00',updated_at:'2026-10-24T11:00:00'},
+        ]);
+      }
+      assert.equal(url, '/rag-api/conversations/newest/messages');
+      return Response.json({
+        conversation:{id:'newest',title:'최신 대화',created_at:'2026-10-25T10:00:00',updated_at:'2026-10-25T11:00:00'},
+        messages:[
+          {id:1,role:'user',text:'질문',sources:[],needs_review:false,handoff:false,clarifying_questions:[]},
+          {id:2,role:'assistant',text:'답변',sources:['매뉴얼 p.1'],needs_review:true,handoff:false,clarifying_questions:['현장은?']},
+        ],
+      });
+    };
+    const conversations = await ragApi.listConversations();
+    assert.deepEqual(conversations.map(chat => chat.id), ['newest','older']);
+    assert.deepEqual(conversations[0].messages, []);
+    const restored = await ragApi.getConversationMessages('newest');
+    assert.equal(restored.messages[1].needsReview, true);
+    assert.deepEqual(restored.messages[1].clarifyingQuestions, ['현장은?']);
+    assert.equal(restored.messages[1].source, '출처: 매뉴얼 p.1');
+    assert.equal(requests[0][1].credentials, 'include');
+    assert.equal(requests[1][1].credentials, 'include');
+  } finally { globalThis.fetch = original; }
+});
+
+test('stored handoff messages keep the safety review presentation', () => {
+  const message = mapStoredMessage({
+    id:3,role:'assistant',text:'확인 필요',sources:[],needs_review:false,handoff:true,clarifying_questions:null,
+  });
+  assert.equal(message.handoff, true);
+  assert.equal(message.source, '근거 없음 · 안전관리자 확인 필요');
+  assert.deepEqual(message.clarifyingQuestions, []);
+});
+
+test('JSON questions include the active conversation ID', async () => {
+  const original = globalThis.fetch;
+  try {
+    globalThis.fetch = async (_url, options) => {
+      assert.deepEqual(JSON.parse(options.body), {
+        prompt:'후속 질문',source:'pdf',top_k:5,conversation_id:'conversation-1',
+      });
+      return Response.json({answer:'답변',conversation_id:'conversation-1',title:'제목'});
+    };
+    await ragApi.query({prompt:'후속 질문',conversationId:'conversation-1'});
+  } finally { globalThis.fetch = original; }
+});
+
 function streamingResponse(parts) {
   const encoder = new TextEncoder();
   return new Response(new ReadableStream({
@@ -52,7 +107,7 @@ test('streaming questions append tokens in order and return final sources', asyn
       assert.equal(url,'/rag-api/rag-query/stream');
       assert.equal(options.method,'POST');
       assert.equal(options.credentials,'include');
-      assert.deepEqual(JSON.parse(options.body),{prompt:'질문',source:'pdf',top_k:5});
+      assert.deepEqual(JSON.parse(options.body),{prompt:'질문',source:'pdf',top_k:5,conversation_id:'conversation-1'});
       return streamingResponse([
         'event: status\ndata: {"phase":"retrieving","message":"검색 중"}\n\nevent: token\nda',
         'ta: {"text":"안전"}\n\nevent: token\ndata: {"text":" 수칙"}\n\n',
@@ -60,7 +115,7 @@ test('streaming questions append tokens in order and return final sources', asyn
       ]);
     };
     const statuses=[],tokens=[];
-    const result=await ragApi.queryStream({prompt:'질문'},{
+    const result=await ragApi.queryStream({prompt:'질문',conversationId:'conversation-1'},{
       onStatus:data=>statuses.push(data.message),onToken:text=>tokens.push(text),
     });
     assert.deepEqual(statuses,['검색 중']);

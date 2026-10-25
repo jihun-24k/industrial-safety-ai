@@ -1,5 +1,38 @@
 import { request } from './client.js';
 
+export function mapStoredMessage(message) {
+  const sources = Array.isArray(message.sources) ? message.sources : [];
+  const handoff = message.handoff === true;
+  return {
+    id: message.id,
+    role: message.role,
+    text: message.text,
+    sources,
+    needsReview: message.needs_review === true,
+    handoff,
+    clarifyingQuestions: Array.isArray(message.clarifying_questions) ? message.clarifying_questions : [],
+    source: handoff ? '근거 없음 · 안전관리자 확인 필요'
+      : (sources.length ? `출처: ${sources.join(', ')}` : '문서 자료 기반'),
+    createdAt: message.created_at,
+  };
+}
+
+export function mapStoredConversation(conversation, messages = []) {
+  return {
+    id: conversation.id,
+    title: conversation.title,
+    messages: messages.map(mapStoredMessage),
+    createdAt: conversation.created_at,
+    updatedAt: conversation.updated_at,
+  };
+}
+
+function queryPayload({ prompt, topK = 5, conversationId }) {
+  const payload = { prompt, source: 'pdf', top_k: topK };
+  if (conversationId) payload.conversation_id = conversationId;
+  return payload;
+}
+
 function parseSseEvent(block) {
   let event = 'message';
   const data = [];
@@ -49,22 +82,32 @@ async function streamError(response) {
 }
 
 export const ragApi = {
-  query({ prompt, topK = 5 }, options = {}) {
+  async listConversations() {
+    const data = await request('/rag-api/conversations');
+    return data.map(conversation => mapStoredConversation(conversation));
+  },
+
+  async getConversationMessages(conversationId) {
+    const data = await request(`/rag-api/conversations/${encodeURIComponent(conversationId)}/messages`);
+    return mapStoredConversation(data.conversation, data.messages);
+  },
+
+  query({ prompt, topK = 5, conversationId }, options = {}) {
     return request('/rag-api/rag-query', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, source: 'pdf', top_k: topK }),
+      body: JSON.stringify(queryPayload({ prompt, topK, conversationId })),
       signal: options.signal,
     });
   },
 
-  async queryStream({ prompt, topK = 5 }, handlers = {}) {
+  async queryStream({ prompt, topK = 5, conversationId }, handlers = {}) {
     const timeout = AbortSignal.timeout(120000);
     const signal = handlers.signal ? AbortSignal.any([handlers.signal, timeout]) : timeout;
     const response = await fetch('/rag-api/rag-query/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
-      body: JSON.stringify({ prompt, source: 'pdf', top_k: topK }),
+      body: JSON.stringify(queryPayload({ prompt, topK, conversationId })),
       credentials: 'include',
       signal,
     });
