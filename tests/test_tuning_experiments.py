@@ -12,17 +12,20 @@ class TuningTests(unittest.TestCase):
    asyncio.run(t.run_trials({},[],[],[v['name'] for v in t.VARIANTS],live=False,max_trials=1))
  def test_isolation_and_manifest_counts(self):
   cfg=pp.config_at(pp.ROOT/'pipeline/config.json')
-  base=pp.resolve_pointer(cfg['output_root'],'prepared.json')
-  pages=pp.read_lines(base/'pages.jsonl')
-  original=(cfg['output_root']/'current.json').read_bytes()
+  pages=[{'doc_id':'fixture','filename':'fixture.pdf','source_sha256':'test',
+          'doc_type':'manual','effective_date':None,'pdf_page':1,'quality_flags':[],
+          'raw_text':'문서 내용.','cleaned_text':'문서 내용.'}]
   with tempfile.TemporaryDirectory() as folder:
    out=Path(folder);prepared=out/'base';prepared.mkdir()
-   for name in ['manifest.json','report.json']:(prepared/name).write_bytes((base/name).read_bytes())
+   pp.write_json(prepared/'manifest.json',{'build_id':'fixture','splitter':{},'files':{}})
+   pp.write_json(prepared/'report.json',{'documents':[{'doc_id':'fixture'}]})
    pp.write_json(out/'prepared.json',{'path':'base'})
+   pp.write_json(out/'current.json',{'path':'base'})
+   original=(out/'current.json').read_bytes()
    trial=t.isolated_config({**cfg,'output_root':out},pages,t.VARIANTS[2])
    self.assertTrue(trial['output_root'].is_relative_to(out/'tuning'))
    target=pp.resolve_pointer(trial['output_root'],'prepared.json')
    manifest=pp.read_json(target/'manifest.json')
    self.assertEqual(manifest['chunk_count'],len(pp.read_lines(target/'chunks.jsonl')))
    pp.verify_files(target,manifest)
-  self.assertEqual(original,(cfg['output_root']/'current.json').read_bytes())
+   self.assertEqual(original,(out/'current.json').read_bytes())

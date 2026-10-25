@@ -1,5 +1,6 @@
 #### 다음 실습 코드는 학습 목적으로만 사용 바랍니다. 문의 : audit@korea.ac.kr 임성열 Ph.D.
 
+import hashlib
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.engine import URL
@@ -9,7 +10,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_openai import ChatOpenAI
 from langchain_openai import OpenAIEmbeddings
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from pypdf import PdfReader
@@ -49,6 +50,7 @@ from dotenv import load_dotenv
 # 현재 Python 파일과 같은 위치에 있는 .env 파일 로드
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
+load_dotenv(BASE_DIR.parent / ".env")
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -67,6 +69,9 @@ import sys
 PROJECT_ROOT = BASE_DIR.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+from pipeline.retrieval_context import path_text, select_context_rows
+from pipeline.safety_workflow import assemble as assemble_safety, ANSWER_POLICY, generation_requirements, ensure_contact_details
+from pipeline.knowledge_graph import evidence_eligible
 try:
     from pipeline import pdf_pipeline as team_pipeline
     TEAM_CFG = team_pipeline.config_at(PROJECT_ROOT / "pipeline" / "config.json")
@@ -83,7 +88,7 @@ SEARCH_PLAN_PROMPT = SEARCH_PLAN_FILE.read_text(encoding="utf-8") if SEARCH_PLAN
 USE_SEARCH_PLAN = os.getenv("USE_SEARCH_PLAN", "true").lower() == "true" and bool(SEARCH_PLAN_PROMPT)
 MAX_PLAN_QUERIES = 8      # 프롬프트 규칙: 최대 8개 질의
 PLAN_TOP_K = 3            # 계획 검색어 하나당 가져올 청크 수
-MAX_CONTEXT_DOCS = 12     # LLM에게 넘길 최대 청크 수
+MAX_CONTEXT_DOCS = 20     # LLM에게 넘길 최대 청크 수
 print("✅ 검색 계획 사용" if USE_SEARCH_PLAN else "ℹ️ 검색 계획 끔 (prompts/search_plan.txt 없음 또는 USE_SEARCH_PLAN=false)")
 
 # ✅ DB 연결 정보
@@ -344,6 +349,9 @@ class RAGRequest(BaseModel):
     source: Literal["web", "pdf"] = Field(default=..., description="web | pdf")
     top_k: int = Field(default=5, ge=1, le=20, description="검색할 결과 수 (기본값 5)")
     conversation_id: Optional[str] = Field(default=None, max_length=36)
+    institution_scope: Optional[str] = Field(default=None, max_length=200)
+    accident_classification: Optional[Literal["major", "non_major"]] = None
+    contact_at: Optional[AwareDatetime] = Field(default=None, description="연락 시간 필터: 시간대 포함 ISO datetime")
 
     class Config:
         validate_by_name = True
@@ -357,6 +365,7 @@ class AnswerResponse(BaseModel):
     handoff: bool = False        # 근거 없음 → 답변 대신 담당자에게 넘김
     search_queries: List[str] = []        # 검색 계획으로 만든 검색어 (확인·디버깅용)
     clarifying_questions: List[str] = []  # 판단에 필요한 추가 질문 (검색 계획이 제안)
+    graph_retrieval: dict = Field(default_factory=dict)
     conversation_id: str
     title: str
 
@@ -763,27 +772,16 @@ def make_search_plan(question: str) -> dict | None:
 
 # 물질 필터를 쓸 검색 묶음: 물질 MSDS에서 찾아야 하는 것만 (보고·연락망·일반 대응은 매뉴얼 전체에서 찾기)
 MATERIAL_FILTER_CATEGORIES = ("물질", "소화")
-_TEAM_STORE = {"folder": None, "store": None}
-
-def team_store_no_filter():
-    """조원 인덱스를 직접 불러온다 (물질 필터 없이 전체 검색용). current.json이 바뀌면 다시 불러옴"""
-    folder = team_pipeline.resolve_pointer(TEAM_CFG["output_root"], "current.json")
-    if _TEAM_STORE["folder"] != folder:
-        _TEAM_STORE["store"] = team_pipeline.load_index(
-            folder, TEAM_EMBEDDER, TEAM_CFG["embedding_model"], TEAM_CFG["embedding_dimension"])
-        _TEAM_STORE["folder"] = folder
-    return _TEAM_STORE["store"]
 
 def retrieve_one(source: str, use_team: bool, vectorstore, query: str, k: int, category: str | None = None):
     """검색어 하나 → [(Document, 거리)]
     category가 None(원래 질문)이거나 물질·소화 묶음이면 조원 search()(물질 필터 포함),
     그 밖의 묶음(사고 대응·보고·연락망)은 필터 없이 매뉴얼 전체에서 검색"""
-    if use_team and category and not any(w in category for w in MATERIAL_FILTER_CATEGORIES):
-        print(f"[팀 검색] 물질 필터 없이 전체 검색 [{category}]: {query!r}")
-        return team_store_no_filter().similarity_search_with_score(query, k=k)
     if use_team:
-        # 조원 search(): 물질명 매칭 시 해당 MSDS 페이지로 좁혀 검색 + 문서/페이지/조문 메타데이터
-        result = team_pipeline.search(TEAM_CFG, TEAM_EMBEDDER, query, k)
+        # Graph traversal runs once on the original/contextual question in prepare_rag.
+        filter_material = not category or any(w in category for w in MATERIAL_FILTER_CATEGORIES)
+        result = team_pipeline.search(TEAM_CFG, TEAM_EMBEDDER, query, k,
+                                      include_graph=False, material_filter=filter_material)
         if result.get("material_filter_applied"):
             print(f"[팀 검색] 물질 필터 적용: {query!r}")
         return [(Document(page_content=r["text"], metadata={kk: v for kk, v in r.items() if kk != "text"}), r["distance"])
@@ -792,6 +790,8 @@ def retrieve_one(source: str, use_team: bool, vectorstore, query: str, k: int, c
 
 def doc_label(doc) -> str:
     m = doc.metadata or {}
+    if m.get("source_url"):
+        return f"{m.get('filename', '공식 웹')} [{m['source_url']}]"
     name = m.get("filename") or m.get("source") or "업로드 문서"
     page = m.get("pdf_page_start") or m.get("page")
     label = f"{name} p.{page}" if page else str(name)
@@ -805,10 +805,11 @@ def build_prompt(context: str, question: str, include_markers: bool = True) -> s
     ending = ("### ANSWER_START\n<답변>\n### ANSWER_END" if include_markers
               else "답변 본문만 출력하세요.")
     return (
-        "당신은 산업 현장 안전사고 대응 도우미입니다. 아래 [검색 내용]은 안전 매뉴얼에서 찾은 부분입니다.\n"
-        "규칙:\n"
+        "당신은 산업 현장 안전사고 대응 도우미입니다. 아래 [검색 내용]은 매뉴얼과 출처가 표시된 공식 참고자료입니다.\n" +
+        ANSWER_POLICY + "\n규칙:\n"
         "- [검색 내용]에 근거해서 한국어로 친절하고 구체적으로 답하세요.\n"
-        "- 질문과 관련된 내용이 일부라도 있으면 그 내용을 정리해서 답하세요. 표·도식에서 뽑힌 끊어진 문장도 의미를 이어서 해석하세요.\n"
+        "- 질문과 관련된 내용을 정리하고 그래프 경로에 표시된 절차 분기·기관·업무 관계를 함께 설명하세요.\n"
+        "- 그래프의 related_work는 관련 업무이고, 조건이 다른 절차 경로는 구분해서 설명하세요. 검색 주제는 실제 발생 사실과 구분하세요.\n"
         "- 문서에 없는 수치·절차는 지어내지 마세요.\n"        "- 연락처는 어느 기관(문서) 자료인지 함께 쓰고, 사용자 소속 기관의 번호로 단정하지 마세요.\n"
         "- 각 문장 끝에 근거 문서 번호를 괄호로 붙이세요. 예: (문서 2)\n"
         "- 질문과 관련된 내용이 [검색 내용]에 전혀 없을 때만 'N/A' 한 단어로 답하세요.\n\n"
@@ -816,13 +817,13 @@ def build_prompt(context: str, question: str, include_markers: bool = True) -> s
         "- 사고가 난 상황을 묻는 질문이면: 1. 즉시 조치 / 2. 물질 위험성·주의사항 / 3. 소화 방법·주의(화재 관련 근거가 있을 때) / 4. 보고·후속 처리 / 5. 담당 부서·연락처\n"
         "  (실제로 일어나지 않은 상황(예: 화재)의 근거는 '해당 시 참고'라고 구분해서 쓰세요.)\n"
         "- 기준·방법·수칙을 묻는 질문이면: 핵심 내용을 번호 목록으로\n"
-        "- 문서에 없는 항목은 'N/A'라고 쓰지 말고 아예 빼세요.\n\n"
+        "- 필요한 항목의 근거가 없으면 누락 항목과 추가 확인 정보를 짧게 쓰세요.\n\n"
         f"[검색 내용]\n{context}\n\n"
         f"[질문] {question}\n\n"
         f"{ending}"
     )
 
-def make_context(docs, limit_chars: int = 12000) -> str:
+def make_context(docs, limit_chars: int = 24000) -> str:
     chunks, total = [], 0
     for i, doc in enumerate(docs, start=1):
         content = (doc.page_content or "").strip()
@@ -832,8 +833,10 @@ def make_context(docs, limit_chars: int = 12000) -> str:
         if not excerpt:
             break
         cat = (doc.metadata or {}).get("plan_category")
-        chunks.append(f"[문서 {i}] ({doc_label(doc)})" + (f" [검색 묶음: {cat}]" if cat else "") + f"\n{excerpt}")
-        total += len(excerpt)
+        provenance = path_text(doc.metadata or {})
+        block = f"[문서 {i}] ({doc_label(doc)})" + (f" [검색 묶음: {cat}]" if cat else "") + f"\n{provenance}\n{excerpt}"
+        chunks.append(block)
+        total += len(block)
     return "\n\n".join(chunks)
 
 async def prepare_rag(rag_request: RAGRequest, search_question: str | None = None) -> dict:
@@ -869,19 +872,44 @@ async def prepare_rag(rag_request: RAGRequest, search_question: str | None = Non
             if cat:
                 doc.metadata["plan_category"] = cat
             docs_scores.append((doc, score))
-    docs_scores = docs_scores[:MAX_CONTEXT_DOCS]
     for i, (doc, score) in enumerate(docs_scores, start=1):
         print(f"[{rag_request.source.upper()} 검색 {i}] 거리={score:.4f}, 출처={doc_label(doc)}, 내용={doc.page_content[:120]!r}")
     if MAX_DISTANCE > 0:
         docs_scores = [(d, s) for d, s in docs_scores if s <= MAX_DISTANCE]
-    docs = [d for d, _ in docs_scores]
+    graph = {'enabled': False, 'results': []}
+    if use_team:
+        graph = await asyncio.to_thread(
+            team_pipeline.graph_search, TEAM_CFG, retrieval_q,
+            institution_scope=rag_request.institution_scope,
+            accident_classification=rag_request.accident_classification, at=rag_request.contact_at)
+    vector_rows = [{**doc.metadata, 'text': doc.page_content, 'distance': float(score),
+                    'chunk_id': doc.metadata.get('chunk_id') or hashlib.sha256(doc.page_content.encode()).hexdigest()}
+                   for doc, score in docs_scores]
+    if use_team:
+        vector_rows = [r for r in vector_rows if evidence_eligible(
+            r, institution_scope=rag_request.institution_scope,
+            accident_classification=rag_request.accident_classification, timing=graph.get('timing'))]
+    selected, workflow = await asyncio.to_thread(
+        assemble_safety, vector_rows, graph, max_docs=MAX_CONTEXT_DOCS,
+        web_enabled=use_team and TEAM_CFG.get('official_web', {}).get('enabled', True))
+    docs = [Document(page_content=r['text'], metadata={k: v for k, v in r.items() if k != 'text'}) for r in selected]
+    graph_metadata = {k: v for k, v in graph.items() if k != 'results'}
+    graph_metadata['safety_workflow'] = workflow
+    graph_metadata['context_paths'] = [
+        {'chunk_id': r['chunk_id'], 'paths': r['graph_paths']} for r in selected if r.get('graph_paths')]
+    context = make_context(docs)
+    if context:
+        context += "\n[근거 확보 현황]\n" + json.dumps(workflow, ensure_ascii=False)
+        context += "\n[필수 답변 구성]\n" + generation_requirements(
+            selected, graph.get("matched_materials", []), citation_style="number")
     return {
         "q": q,
         "emergency": emergency,
         "plan": plan,
         "queries": queries,
         "docs": docs,
-        "context": make_context(docs),
+        "context": context,
+        "graph_retrieval": graph_metadata,
     }
 
 
@@ -896,11 +924,17 @@ def finish_rag(state: dict, raw: str) -> dict:
         "needs_review": emergency,
         "search_queries": [query for _, query in queries[1:]],
         "clarifying_questions": (plan or {}).get("clarifying_questions", []),
+        "graph_retrieval": state.get("graph_retrieval", {}),
     }
     if not final or final.upper().startswith("N/A"):
         answer = (EMERGENCY_LINE + "\n\n" if emergency else "") + NOT_FOUND_MSG
         return {**base, "answer": answer, "sources": [], "handoff": True}
 
+    final, completion_source_ids = ensure_contact_details(
+        final, [{**d.metadata, "text": d.page_content} for d in docs], citation_style="number",
+        enabled=bool(state.get("graph_retrieval", {}).get("matched_materials")),
+        materials=state.get("graph_retrieval", {}).get("matched_materials", []))
+    base["graph_retrieval"]["completion_source_ids"] = completion_source_ids
     cited = [int(n) for n in re.findall(r"문서\s*(\d+)", final)]
     used = [docs[n - 1] for n in cited if 1 <= n <= len(docs)] or docs
     sources = list(dict.fromkeys(doc_label(doc) for doc in used))

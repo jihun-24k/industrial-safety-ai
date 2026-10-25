@@ -2,7 +2,7 @@
 import hashlib
 import re
 
-VERSION='document-links-v1'
+VERSION='document-links-v2'
 MANUAL='lab_safety_manual'
 
 def compile_links(pages):
@@ -29,6 +29,10 @@ def compile_links(pages):
     add('emergency_preparation',31,'3. 비상시를 대비한 확인사항')
     add('contact_directory',32)
     add('chemical_rules',39)
+    add('storage_rules',12)
+    add('waste_segregation',25)
+    add('gas_transport',43)
+    add('gas_cylinder_rules',20)
     add('waste_manual',44)
     add('waste_law_scope',2,'제3조(적용 범위)','제3조의2',doc='waste_management_act')
     add('waste_law_principles',2,'제3조의2','제4조',doc='waste_management_act')
@@ -40,7 +44,9 @@ def compile_links(pages):
       'fire':['fire_general','fire_limits'],
       'emergency_patient':['emergency_patient'],
       'preparation':['emergency_preparation'],
-      'waste':['waste_manual','waste_law_scope','waste_law_principles']}
+      'handling':['storage_rules','chemical_rules'],
+      'transport':['gas_transport','gas_cylinder_rules'],
+      'waste':['waste_segregation','waste_manual','waste_law_scope','waste_law_principles']}
     edges=[{'from':'fire_general','to':'fire_limits','relation':'read_together_for_restrictions_not_execution_order'},
            {'from':'gas_leak_start','to':'gas_leak_continuation','relation':'explicit_heading_continuation'},
            {'from':'body_contamination','to':'contact_directory','relation':'contact_cross_reference_not_phone_equivalence'},
@@ -63,8 +69,12 @@ def sections_for(bundle,topics):
 
 def query_topics(question):
     """Retrieval hints only: a mention/negation is not an actual incident fact."""
-    hints={'fire':('화재','소화','불이'), 'body_contamination':('신체 오염','피부','눈에','세안','몸에'),
-           'gas_leak':('가스 누출','가스누출'), 'spill':('쏟','누출'),
+    hints={'fire':('화재','소화','불이'), 'body_contamination':('신체 오염','피부','눈에','세안','몸에','손에','옷에'),
+           'gas_leak':('가스 누출','가스누출','흡입','들이마','기침','숨이'), 'spill':('쏟','누출','유출','새고','샜','새는'),
            'cut_puncture':('베이','베였','찔','자상'), 'emergency_patient':('응급환자','구조 요청'),
-           'preparation':('비상시 대비','비상 준비'), 'waste':('폐기물','폐액')}
-    return [topic for topic,terms in hints.items() if any(t in question for t in terms)]
+           'preparation':('비상시 대비','비상 준비'), 'waste':('폐기물','폐액','폐시약'),
+           'handling':('보관','저장','취급','라벨','표지','사용하기 전','사용 전','약품 사용'), 'transport':('운반','운송')}
+    topics = [topic for topic,terms in hints.items() if any(t in question for t in terms)]
+    if re.search(r'가스.{0,8}(누출|유출|새|샜)', question) and 'gas_leak' not in topics:
+        topics.append('gas_leak')
+    return topics

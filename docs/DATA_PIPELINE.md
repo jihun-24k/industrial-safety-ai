@@ -1,5 +1,7 @@
 # SafeOps 한국어 PDF 데이터 파이프라인
 
+현재 확장: FAISS에 물질·사고 유형·절차·기관·연락처 그래프를 결합하고 API에 연결했다. 최신 검색 흐름과 그래프 파일 구성은 [GraphRAG 안내](GRAPH_RAG.md)를 참고한다. 아래는 초기 추출·벡터 인덱스 설계 기록이다.
+
 ## 현재 범위
 
 books/data에 등록된 연구실 안전관리 매뉴얼과 폐기물관리법을 처리한다. 교수 제공 코드의 pypdf, RecursiveCharacterTextSplitter, OpenAIEmbeddings, FAISS를 재사용했다. 원본 파일을 변경하지 않고 문서 해시로 입력 버전을 확인한다. 이 파이프라인은 개발용 추출/색인/검색 도구이며 기존 FastAPI, 인증, 화면과 아직 연결되지 않았다.

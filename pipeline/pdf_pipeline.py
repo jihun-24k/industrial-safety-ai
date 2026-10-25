@@ -19,6 +19,8 @@ import sys
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 VERSION = '2'
 
 
@@ -223,9 +225,13 @@ def prepare(cfg):
     try:
         from .structured_ingestion import make_chunks, material_catalog
         from .document_links import compile_links
+        from .knowledge_graph import compile_graph
+        from .safety_structure import load as load_structure
     except ImportError:
         from structured_ingestion import make_chunks, material_catalog
         from document_links import compile_links
+        from pipeline.knowledge_graph import compile_graph
+        from pipeline.safety_structure import load as load_structure
     structured_chunks, structure = make_chunks(cfg)
     pages = []
     for item in cfg['documents']:
@@ -278,8 +284,14 @@ def prepare(cfg):
     folder = cfg['output_root'] / 'prepared' / build_id
     folder.mkdir(parents=True)
     write_lines(folder / 'pages.jsonl', pages)
-    write_json(folder / 'material_catalog.json', material_catalog(pages))
-    write_json(folder / 'document_links.json', compile_links(pages))
+    catalog = material_catalog(pages)
+    links = compile_links(pages)
+    policy = load_structure('operating_policy.json')
+    graph = compile_graph(chunks, catalog, structure, links, policy)
+    write_json(folder / 'material_catalog.json', catalog)
+    write_json(folder / 'document_links.json', links)
+    write_json(folder / 'operating_policy.json', policy)
+    write_json(folder / 'knowledge_graph.json', graph)
     write_json(folder / 'structure_snapshot.json', structure)
     write_lines(folder / 'chunks.jsonl', chunks)
     documents = []
@@ -300,6 +312,7 @@ def prepare(cfg):
     write_json(folder / 'report.json', report)
     preview(folder / 'preview.html', pages, report)
     manifest = {'build_id': build_id, 'pipeline_version': VERSION,
+        'graph_version': graph['version'], 'graph_statistics': graph['statistics'],
         'reviewed_pictograms_sha256': cfg.get('reviewed_pictograms_sha256'),
         'structured_safety_sha256': cfg.get('structured_safety_sha256'),
         'created_at': datetime.now(timezone.utc).isoformat(), 'usage': 'development_review_only',
@@ -307,10 +320,11 @@ def prepare(cfg):
         'splitter': {'chunk_size': cfg['chunk_size'], 'chunk_overlap': cfg['chunk_overlap'], 'unit': 'characters', 'page_boundaries': 'preserved'},
         'chunk_count': len(chunks), 'page_count': len(pages),
         'library_versions': {n: importlib.metadata.version(n) for n in ['pypdf', 'langchain-text-splitters']},
-        'files': {name: digest(folder / name) for name in ['pages.jsonl', 'chunks.jsonl', 'report.json', 'material_catalog.json', 'structure_snapshot.json', 'document_links.json']}}
+        'files': {name: digest(folder / name) for name in ['pages.jsonl', 'chunks.jsonl', 'report.json', 'material_catalog.json', 'structure_snapshot.json', 'document_links.json', 'knowledge_graph.json', 'operating_policy.json']}}
     write_json(folder / 'manifest.json', manifest)
     publish_pointer(cfg['output_root'], 'prepared.json', str(folder.relative_to(cfg['output_root'])))
-    return {'prepared_path': str(folder), 'pages': len(pages), 'chunks': len(chunks), 'usage': report['usage']}
+    return {'prepared_path': str(folder), 'pages': len(pages), 'chunks': len(chunks),
+            'graph': graph['statistics'], 'usage': report['usage']}
 
 
 def embeddings(cfg, env_file=None):
@@ -391,7 +405,8 @@ def build(cfg, embedder):
     faiss.write_index(store.index, str(folder / 'index.faiss'))
     write_lines(folder / 'documents.jsonl', rows)
     extra_files=[]
-    for name in ('material_catalog.json','structure_snapshot.json','document_links.json'):
+    for name in ('material_catalog.json','structure_snapshot.json','document_links.json',
+                 'knowledge_graph.json','operating_policy.json'):
         if (prepared/name).exists():
             (folder/name).write_bytes((prepared/name).read_bytes())
             extra_files.append(name)
@@ -409,7 +424,19 @@ def build(cfg, embedder):
     return {'index_path': str(folder), 'chunks': len(rows), 'dimension': store.index.d, 'usage': 'development_review_only'}
 
 
-def search(cfg, embedder, question, k):
+def graph_search(cfg, question, *, institution_scope=None, accident_classification=None, at=None):
+    """Graph-only query against the current index; no embedding API call."""
+    from pipeline.knowledge_graph import graph_from_folder, retrieve
+    options = cfg.get('graph', {})
+    if not options.get('enabled', True):
+        return {'enabled': False, 'results': []}
+    folder = resolve_pointer(cfg['output_root'], 'current.json')
+    return retrieve(graph_from_folder(folder), question,
+                    max_hops=options.get('max_hops', 5), max_results=options.get('max_results', 24),
+                    institution_scope=institution_scope, accident_classification=accident_classification, at=at)
+
+
+def search(cfg, embedder, question, k, *, include_graph=True, material_filter=True):
     if not question.strip() or not 1 <= k <= 20:
         raise ValueError('질문과 top-k(1~20)를 확인하세요.')
     folder = resolve_pointer(cfg['output_root'], 'current.json')
@@ -421,7 +448,7 @@ def search(cfg, embedder, question, k):
     catalog=read_json(folder/'material_catalog.json') if (folder/'material_catalog.json').exists() else []
     materials=match_materials(question,catalog)
     kwargs={}
-    if len(materials)==1:
+    if material_filter and len(materials)==1:
         target=materials[0]['pdf_page']
         kwargs={'filter':lambda m: m.get('doc_id')=='lab_safety_manual' and m.get('pdf_page_start')==target,
                 'fetch_k':store.index.ntotal}
@@ -439,8 +466,10 @@ def search(cfg, embedder, question, k):
     # Keep native semantic ranking in results; linked source passages are a separate evidence set.
     # This preserves the meaning of vector top-k and never drops mandatory restrictions.
 
+    graph = graph_search(cfg, question) if include_graph else {'enabled': False, 'results': []}
     return {'question': question, 'usage': 'development_review_only', 'score_meaning': 'squared_L2_not_confidence',
-            'material_matches':materials,'material_filter_applied':len(materials)==1,
+            'material_matches':materials,'material_filter_applied':material_filter and len(materials)==1,
+            'graph_results': graph['results'], 'graph_retrieval': {key: value for key, value in graph.items() if key != 'results'},
             'linked_results':topic_rows,
             'results': [{'rank': i, 'distance': float(score), 'text': doc.page_content, **doc.metadata}
                         for i, (doc, score) in enumerate(found, 1)]}

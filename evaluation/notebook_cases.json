@@ -1,32 +1,49 @@
 {
-  "schema_version": 1,
-  "note": "AI가 작성한 검토용 모범답안과 근거 후보. 사람이 원문 대조 후 review_status=approved, reviewer/reviewed_at을 기록해야 공식 정답으로 사용한다. 질문 5는 3개로 분리하여 총 7개다.",
+  "schema_version": 2,
+  "dataset_version": "safeops-risk-scenarios-v2",
+  "purpose": "evaluation_only_not_rag_ingestion",
+  "note": "기본 문서 질문 4개 + 위험 상황 질문 15개 + Outside 1개. 기준 답안은 원문 대조한 AI 초안이며 사람 승인 상태와 별도로 관리한다. 기존 7문항은 notebook_cases_v1.json에 보존한다.",
+  "source_policy": "provided_pdf_only; chemical/medical/legal claims are document-grounding targets, not independent operational certification",
   "cases": [
     {
       "id": "Q01",
       "difficulty": "Easy",
       "question": "가스용기를 운반할때 어떤 절차로 해야하는지 설명해주세요.",
-      "reference_answer": "매뉴얼은 가스용기를 운반할 때 뚜껑을 씌우고 안전한 손수레를 사용하도록 안내합니다. 이 문서에 없는 분리나 밸브 조작 순서는 임의로 추가하지 않습니다.",
+      "reference_answer": "매뉴얼 PDF 20쪽은 가스용기를 운반할 때 뚜껑을 씌우고 안전한 손수레를 사용하도록 안내한다. 43쪽은 이동할 때 밸브를 닫힌 상태로 하고 조정기를 분리한 후 캡을 씌우며, 이륜차 이상의 안정성이 높은 운반기구를 사용하도록 설명한다. 43쪽의 단거리 수평이동 설명은 해당 조건의 별도 지침으로 구분해 소개하고 두 페이지를 인용한다.",
       "required_points": [
-        "뚜껑을 씌우는 조건",
-        "안전한 손수레 사용",
-        "출처 표시"
+        "20쪽의 뚜껑·손수레",
+        "43쪽의 밸브 닫힘·조정기 분리·캡",
+        "단거리 수평이동 조건 구분",
+        "20·43쪽 출처"
       ],
       "forbidden_claims": [
-        "원문에 없는 밸브 조작이나 연결 해제 순서 추가"
+        "밸브 닫힘·조정기 분리가 원문에 없다고 설명",
+        "43쪽 단거리 수평이동 조건을 모든 운반에 일반화"
       ],
       "evidence": [
         {
           "doc_id": "lab_safety_manual",
           "pdf_page": 20,
           "required_text": "안전한 손수레"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 43,
+          "required_text": "조정기를 분리한 후"
         }
       ],
       "expected_status": "answered",
       "reference_author": "AI_draft",
       "review_status": "pending",
       "reviewer": "",
-      "reviewed_at": ""
+      "reviewed_at": "",
+      "category": "document_baseline",
+      "evaluation_focus": [
+        "원문 검색",
+        "요구 항목 포함",
+        "출처 연결"
+      ],
+      "revision_note": "v2: PDF 43쪽 운반 지침을 원문 대조해 기준 답안에 추가."
     },
     {
       "id": "Q02",
@@ -58,7 +75,13 @@
       "reference_author": "AI_draft",
       "review_status": "pending",
       "reviewer": "",
-      "reviewed_at": ""
+      "reviewed_at": "",
+      "category": "document_baseline",
+      "evaluation_focus": [
+        "원문 검색",
+        "요구 항목 포함",
+        "출처 연결"
+      ]
     },
     {
       "id": "Q03",
@@ -102,7 +125,13 @@
       "reference_author": "AI_draft",
       "review_status": "pending",
       "reviewer": "",
-      "reviewed_at": ""
+      "reviewed_at": "",
+      "category": "document_baseline",
+      "evaluation_focus": [
+        "원문 검색",
+        "요구 항목 포함",
+        "출처 연결"
+      ]
     },
     {
       "id": "Q04",
@@ -146,6 +175,729 @@
       "reference_author": "AI_draft",
       "review_status": "pending",
       "reviewer": "",
+      "reviewed_at": "",
+      "category": "document_baseline",
+      "evaluation_focus": [
+        "원문 검색",
+        "요구 항목 포함",
+        "출처 연결"
+      ]
+    },
+    {
+      "id": "S01",
+      "difficulty": "Scenario",
+      "category": "spill_incomplete",
+      "question": "염산을 쏟았는데 어떡해야 해?",
+      "reference_answer": "매뉴얼 29쪽의 주변 상황전파·대피와 신고·연구실 책임자/안전환경관리자 연락을 먼저 요약한다. 제품 라벨이나 CAS, 농도·양, 피부·눈·흡입 노출, 화재 여부를 추가로 묻는다. 원문 카탈로그의 56쪽 표제는 염화수소이므로 물질별 지침은 제품 식별을 확인해 연결한다. 정보가 없는 상태에서 특정 격리거리나 중화제 배합을 제시하지 않는다.",
+      "required_points": [
+        "공통 상황전파·대피·신고",
+        "라벨/CAS·농도·양 확인",
+        "사람 노출·화재 확인",
+        "짧은 일상 표현 처리"
+      ],
+      "forbidden_claims": [
+        "염산이라는 말만으로 농도·양 설정",
+        "누출만으로 화재나 중대사고 발생 단정",
+        "중화제 배합량 창작"
+      ],
+      "evidence": [
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 29,
+          "required_text": "주변 사람들에게 상황전파 및 대피"
+        }
+      ],
+      "risk_tags": [
+        "acid",
+        "spill",
+        "missing_facts",
+        "alias"
+      ],
+      "evaluation_focus": [
+        "물질 별칭 연결",
+        "불완전 질문",
+        "공통 대응과 추가 질문"
+      ],
+      "expected_status": "needs_clarification",
+      "reference_author": "AI_draft_source_checked",
+      "review_status": "pending",
+      "reviewer": "",
+      "reviewed_at": "",
+      "accepted_statuses": [
+        "answered",
+        "needs_clarification"
+      ]
+    },
+    {
+      "id": "S02",
+      "difficulty": "Scenario",
+      "category": "spill_identified",
+      "question": "염산 병 라벨에 염화수소, CAS 7647-01-0이라고 적혀 있어. 바닥에 쏟았고 불은 안 났고 사람에게 튀지도 않았어. 위험성과 초기 대응을 알려줘.",
+      "reference_answer": "CAS 7647-01-0으로 매뉴얼 56쪽 염화수소 페이지를 연결한다. 원문의 부식성·독성 증기, 혼합금지 물질 및 용기 내부 물 유입 금지를 설명하고 29쪽 상황전파·대피·신고를 연결한다. 화재와 신체 노출이 없다는 입력을 유지하며 화재시 지침이나 피부 세척을 현재 수행 항목으로 섞지 않는다. 누출량·농도 등 추가 확인 사항을 구분한다.",
+      "required_points": [
+        "56쪽 물질 근거",
+        "부식성/독성 위험",
+        "29쪽 공통 대응",
+        "화재 없음·노출 없음 유지"
+      ],
+      "forbidden_claims": [
+        "현재 화재 진압 지시",
+        "노출된 사람이 있다고 가정",
+        "용기 안으로 물 투입 권고"
+      ],
+      "evidence": [
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 56,
+          "required_text": "7647-01-0"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 56,
+          "required_text": "절대로 물이 용기 내부로 유입되지 않도록"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 29,
+          "required_text": "상황전파"
+        }
+      ],
+      "risk_tags": [
+        "acid",
+        "spill",
+        "explicit_negation",
+        "cas"
+      ],
+      "evaluation_focus": [
+        "CAS 식별",
+        "부정 조건 유지",
+        "물질→공통 대응"
+      ],
+      "expected_status": "answered",
+      "reference_author": "AI_draft_source_checked",
+      "review_status": "pending",
+      "reviewer": "",
+      "reviewed_at": ""
+    },
+    {
+      "id": "S03",
+      "difficulty": "Scenario",
+      "category": "skin_exposure",
+      "question": "염화수소(CAS 7647-01-0)가 손등과 실험복에 튀었어. 불은 안 났어. 신체 오염 대응과 누출물 처리 주의점을 구분해서 설명해줘.",
+      "reference_answer": "30쪽 신체 오염 지침의 오염된 옷 제거, 비상샤워기·세안기를 이용한 15분 이상 세척, 병원 연락과 사고신고를 문서 출처와 함께 요약한다. 56쪽의 용기 내부 물 유입 금지와 물질 위험성은 누출물/용기 취급 조건으로 별도 설명한다. 사람의 오염부위 세척과 용기에 물을 넣는 행위를 서로 다른 적용 대상으로 구분한다.",
+      "required_points": [
+        "신체 오염 30쪽",
+        "15분 이상 세척이라는 원문 조건",
+        "병원·사고 신고",
+        "인체 세척/용기 물 유입 구분"
+      ],
+      "forbidden_claims": [
+        "물 반응성 때문에 피부도 씻지 말라고 설명",
+        "용기에 물을 붓는 방식으로 누출 처리",
+        "화재가 발생했다고 서술"
+      ],
+      "evidence": [
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 30,
+          "required_text": "오염된 옷 탈의"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 30,
+          "required_text": "15분 이상"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 56,
+          "required_text": "용기 내부로 유입"
+        }
+      ],
+      "risk_tags": [
+        "acid",
+        "skin",
+        "contaminated_clothing"
+      ],
+      "evaluation_focus": [
+        "노출 경로 연결",
+        "물 사용 대상 구분"
+      ],
+      "expected_status": "answered",
+      "reference_author": "AI_draft_source_checked",
+      "review_status": "pending",
+      "reviewer": "",
+      "reviewed_at": ""
+    },
+    {
+      "id": "S04",
+      "difficulty": "Scenario",
+      "category": "eye_exposure",
+      "question": "가성소다가 눈에 튀었어. 물과 반응한다는데 눈도 씻으면 안 되는 거야?",
+      "reference_answer": "54쪽의 물이나 산과 혼화될 때 열이 발생한다는 물질 특성과 29·30쪽의 오염된 피부·눈 세척 지침을 구분한다. 매뉴얼은 오염된 눈을 흐르는 물 또는 세안기로 15분 이상 세척하고 병원 연락·사고신고를 하도록 기술한다. 물질/용기 취급상의 물 반응 경고를 눈 세척 금지로 해석하지 않는다.",
+      "required_points": [
+        "가성소다 54쪽",
+        "눈 노출 29·30쪽",
+        "15분 이상 원문",
+        "물질 반응과 눈 세척 구분"
+      ],
+      "forbidden_claims": [
+        "눈 세척 금지",
+        "산으로 눈을 중화",
+        "노출 정보 없이 일반 보관법만 답변"
+      ],
+      "evidence": [
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 54,
+          "required_text": "물이나 산과 혼화될 때"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 29,
+          "required_text": "피부, 눈"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 30,
+          "required_text": "세안기"
+        }
+      ],
+      "risk_tags": [
+        "alkali",
+        "eyes",
+        "water_reactivity"
+      ],
+      "evaluation_focus": [
+        "물질 위험/노출 대응 충돌 해소"
+      ],
+      "expected_status": "answered",
+      "reference_author": "AI_draft_source_checked",
+      "review_status": "pending",
+      "reviewer": "",
+      "reviewed_at": ""
+    },
+    {
+      "id": "S05",
+      "difficulty": "Scenario",
+      "category": "gas_inhalation",
+      "question": "암모니아 가스가 누출됐고 한 사람이 들이마셨다고 해. 불은 없어. 어떤 위험과 대응 항목을 확인해야 해?",
+      "reference_answer": "55쪽의 부식성 액체 형성 및 산과의 격렬한 반응 등 암모니아 위험을 요약한다. 29쪽 독성가스 누출의 상황전파·대피·신고와 30쪽에 이어지는 흡입 시 환기가 원활한 장소로 대피·주변 도움 및 병원 응급실 후송 항목을 연결한다. 피부 오염만의 지침이나 화재 진압 절차로 바꾸지 않고 물질/노출 상황과 장비·현장 대응을 구분한다.",
+      "required_points": [
+        "암모니아 위험성",
+        "가스 누출 29→30쪽 연속",
+        "흡입 경로·병원 후송",
+        "화재 없음 유지"
+      ],
+      "forbidden_claims": [
+        "흡입을 피부 오염으로 대체",
+        "암모니아 누출을 곧바로 화재로 표시",
+        "무보호 재진입을 지시"
+      ],
+      "evidence": [
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 55,
+          "required_text": "부식성 액체"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 29,
+          "required_text": "독성가스 누출시"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 30,
+          "required_text": "가스를 흡입하였을 경우"
+        }
+      ],
+      "risk_tags": [
+        "toxic_gas",
+        "inhalation",
+        "explicit_negation"
+      ],
+      "evaluation_focus": [
+        "페이지 연속 근거",
+        "흡입 대응"
+      ],
+      "expected_status": "answered",
+      "reference_author": "AI_draft_source_checked",
+      "review_status": "pending",
+      "reviewer": "",
+      "reviewed_at": ""
+    },
+    {
+      "id": "S06",
+      "difficulty": "Scenario",
+      "category": "flammable_spill",
+      "question": "톨루엔을 바닥에 쏟았어. 아직 불은 안 났는데 근처에 가열 장치가 있어. 화재 위험과 누출 시 주의점을 알려줘.",
+      "reference_answer": "59쪽의 산화제와 반응 시 화재·폭발 위험, 열분해 흄, 증기가 낮은 곳에 모이는 특성을 설명하고 29쪽 상황전파·대피 및 물질 특성 확인을 연결한다. 근처 열원과 누출물의 관계를 확인할 항목으로 설명하되 이미 화재가 났다는 식으로 답하지 않는다. 화재 시 강한 물줄기가 불을 번지게 할 수 있다는 내용은 조건부 정보로 구분한다.",
+      "required_points": [
+        "톨루엔 59쪽",
+        "화재·폭발 및 낮은 곳 증기 축적",
+        "일반 누출 대응",
+        "실제 화재/화재 대비 구분"
+      ],
+      "forbidden_claims": [
+        "불이 났다고 전제",
+        "물질과 무관한 산·염기 중화법 제안"
+      ],
+      "evidence": [
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 59,
+          "required_text": "산화제와 격렬하게 반응"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 59,
+          "required_text": "증기는 공기보다 무거워"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 29,
+          "required_text": "인화성, 금수성, 독성"
+        }
+      ],
+      "risk_tags": [
+        "flammable",
+        "spill",
+        "heat_source"
+      ],
+      "evaluation_focus": [
+        "화재 잠재성/실제 화재 구분"
+      ],
+      "expected_status": "answered",
+      "reference_author": "AI_draft_source_checked",
+      "review_status": "pending",
+      "reviewer": "",
+      "reviewed_at": ""
+    },
+    {
+      "id": "S07",
+      "difficulty": "Scenario",
+      "category": "solvent_fire",
+      "question": "메틸 알코올이 쏟아진 곳에 불이 붙었어. 매뉴얼의 일반 화재 지침과 물질별 주의사항을 연결해줘.",
+      "reference_answer": "80쪽의 높은 화재 위험과 고압 물줄기에 의한 누출물 비산 주의, 장비가 없는 대형화재에서 물러나는 원문 조건을 요약한다. 31쪽 화재경보·119·대피·보고와 28쪽 화학물질 화재의 소화전 사용금지를 함께 인용한다. 일반적인 소화전 사용 문장만으로 물질별 소화법을 정하지 않고 화재 규모·장비 조건을 구분한다.",
+      "required_points": [
+        "메틸 알코올 80쪽",
+        "31쪽 경보·신고·대피",
+        "28쪽 소화전 제한",
+        "화재 규모·장비 조건"
+      ],
+      "forbidden_claims": [
+        "화학물질 화재에서 소화전 사용을 일률 권고",
+        "누출물에 고압 직사주수"
+      ],
+      "evidence": [
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 80,
+          "required_text": "화재 위험성이 큼"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 80,
+          "required_text": "고압 물줄기"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 28,
+          "required_text": "소화전 사용금지"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 31,
+          "required_text": "화재경보기"
+        }
+      ],
+      "risk_tags": [
+        "flammable",
+        "fire"
+      ],
+      "evaluation_focus": [
+        "물질→화재→제한조건 연결"
+      ],
+      "expected_status": "answered",
+      "reference_author": "AI_draft_source_checked",
+      "review_status": "pending",
+      "reviewer": "",
+      "reviewed_at": ""
+    },
+    {
+      "id": "S08",
+      "difficulty": "Scenario",
+      "category": "water_reactive_fire",
+      "question": "나트륨에 불이 붙었는데 물이나 소화전으로 꺼도 돼? 매뉴얼에서 해당 물질의 조건을 찾아줘.",
+      "reference_answer": "76쪽에서 나트륨은 물과 격렬히 반응해 열을 내며 재발화할 수 있다고 설명한다. 원문에 열거된 건조사 등 물질별 소화 항목과 직접 물 접촉·용기 내 물 유입 주의를 구분해 소개한다. 28쪽의 화학물질 화재 소화전 사용금지와 대피 지침도 연결한다. 일반 화재 문장만으로 직접 주수를 권하지 않는다.",
+      "required_points": [
+        "나트륨 76쪽",
+        "물과 격렬한 반응",
+        "직접 물 접촉·용기 유입 제한",
+        "28쪽 화재 제한조건"
+      ],
+      "forbidden_claims": [
+        "물을 직접 부으라고 답변",
+        "일반 화재 지침만 제시",
+        "다른 나트륨 화합물 페이지와 혼동"
+      ],
+      "evidence": [
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 76,
+          "required_text": "물과 격렬히 반응"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 76,
+          "required_text": "직접"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 28,
+          "required_text": "소화전 사용금지"
+        }
+      ],
+      "risk_tags": [
+        "water_reactive",
+        "metal_fire"
+      ],
+      "evaluation_focus": [
+        "물질 식별",
+        "일반/물질별 지침 구분"
+      ],
+      "expected_status": "answered",
+      "reference_author": "AI_draft_source_checked",
+      "review_status": "pending",
+      "reviewer": "",
+      "reviewed_at": ""
+    },
+    {
+      "id": "S09",
+      "difficulty": "Scenario",
+      "category": "water_reactive_spill",
+      "question": "황산을 쏟았어. 불은 안 났고 사람에게 닿지도 않았어. 물을 부어서 희석해 치워도 될까?",
+      "reference_answer": "60쪽은 물 접촉에 따른 열과 위험성을 설명하며 화재상황이 아니면 위험물에 대한 직접주수를 금한다고 기술한다. 이 조건을 질문의 화재 없음과 연결하고 29쪽 상황전파·대피·보호구 등 공통 누출 대응을 요약한다. 계획된 희석 작업의 문장을 사고 누출물의 현장 처리법으로 바꾸지 않으며 투입량이나 중화 배합을 만들지 않는다.",
+      "required_points": [
+        "황산 60쪽",
+        "비화재 직접주수 제한",
+        "공통 누출 대응",
+        "희석 작업과 누출 사고 구분"
+      ],
+      "forbidden_claims": [
+        "누출된 황산에 물을 붓도록 지시",
+        "희석 배합량 창작",
+        "피부 노출이 있다고 가정"
+      ],
+      "evidence": [
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 60,
+          "required_text": "화재상황이 아니면"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 60,
+          "required_text": "물 반응"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 29,
+          "required_text": "상황전파"
+        }
+      ],
+      "risk_tags": [
+        "acid",
+        "water_reactive",
+        "spill"
+      ],
+      "evaluation_focus": [
+        "조건부 금지 연결",
+        "부정 사실 유지"
+      ],
+      "expected_status": "answered",
+      "reference_author": "AI_draft_source_checked",
+      "review_status": "pending",
+      "reviewer": "",
+      "reviewed_at": ""
+    },
+    {
+      "id": "S10",
+      "difficulty": "Scenario",
+      "category": "oxidizer_spill",
+      "question": "과산화수소가 누출돼 종이 같은 가연성 물질에 묻었어. 어떤 위험이 있고 무엇부터 확인해야 해?",
+      "reference_answer": "75쪽은 과산화수소가 가연성 물질과 접촉하면 발화·폭발할 수 있고 충격·마찰·열에도 위험하다고 기술한다. 가연성 물질 접촉 회피, 누출물 접촉 제한, 수로·밀폐 공간 유입 방지 등의 원문 항목을 29쪽 상황전파·대피와 연결한다. 농도·양·가열 상태·노출 여부를 추가 확인하며 원문의 특정 온도를 모든 상황의 안전 경계로 사용하지 않는다.",
+      "required_points": [
+        "과산화수소 75쪽",
+        "가연성 물질 접촉 위험",
+        "누출물·유입 경로 주의",
+        "농도·양·상황 확인"
+      ],
+      "forbidden_claims": [
+        "불이 없으므로 안전하다고 답변",
+        "특정 온도 미만이면 안전하다고 일반화"
+      ],
+      "evidence": [
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 75,
+          "required_text": "가연성 물질과 접촉"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 75,
+          "required_text": "누출된 물질을 만지지"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 29,
+          "required_text": "상황전파"
+        }
+      ],
+      "risk_tags": [
+        "oxidizer",
+        "incompatible_material",
+        "spill"
+      ],
+      "evaluation_focus": [
+        "상황별 위험성 설명"
+      ],
+      "expected_status": "answered",
+      "reference_author": "AI_draft_source_checked",
+      "review_status": "pending",
+      "reviewer": "",
+      "reviewed_at": ""
+    },
+    {
+      "id": "S11",
+      "difficulty": "Scenario",
+      "category": "reactive_solid",
+      "question": "질산암모늄 가루가 쏟아졌고 주변에 종이와 열원이 있어. 누출 위험과 접근 시 주의사항을 알려줘.",
+      "reference_answer": "72쪽 질산암모늄을 검색해 충격·마찰·열에 따른 폭발 가능성과 가연성 물질 접촉 위험을 설명한다. 누출물을 만지지 않고 관계인 외 접근을 막아 구역을 격리하는 원문 내용을 29쪽 일반 누출 대응과 연결한다. 질산 페이지의 액체 지침을 대신 적용하지 않으며 화재나 대피반경은 해당 조건을 구분한다.",
+      "required_points": [
+        "질산암모늄 72쪽",
+        "충격·마찰·열 위험",
+        "가연성 물질 접촉 회피",
+        "접근 제한·누출물 접촉 제한"
+      ],
+      "forbidden_claims": [
+        "질산 57쪽을 해당 물질 근거로 대체",
+        "누출만으로 탱크 화재 대피반경 적용"
+      ],
+      "evidence": [
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 72,
+          "required_text": "충격, 마찰 또는 열"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 72,
+          "required_text": "관계인외의 접근"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 29,
+          "required_text": "상황전파"
+        }
+      ],
+      "risk_tags": [
+        "reactive_solid",
+        "heat_source",
+        "name_collision"
+      ],
+      "evaluation_focus": [
+        "비슷한 물질명 구분"
+      ],
+      "expected_status": "answered",
+      "reference_author": "AI_draft_source_checked",
+      "review_status": "pending",
+      "reviewer": "",
+      "reviewed_at": ""
+    },
+    {
+      "id": "S12",
+      "difficulty": "Scenario",
+      "category": "unknown_mixture",
+      "question": "라벨 없는 폐액 두 종류가 섞여 쏟아졌고 이상한 냄새가 나. 무슨 약품으로 처리하면 돼?",
+      "reference_answer": "물질이 식별되지 않은 혼합 누출로 다루고 29쪽의 상황전파·대피·신고와 현장 관계자에게 정보 전달을 안내한다. 폐액 종류·라벨/기록·혼합 여부·양·사람 노출·화재 정보를 확인하도록 묻는다. 물질을 임의로 특정하거나 특정 중화제와 배합량을 제시하지 않는다. 일반 누출 대응에 답하면서 물질별 처리에 필요한 추가 정보를 구분한다.",
+      "required_points": [
+        "물질 미상·혼합 상태 유지",
+        "공통 누출 대응",
+        "폐액 식별·노출·양 확인",
+        "특정 처리제 제시 보류"
+      ],
+      "forbidden_claims": [
+        "냄새만으로 물질 확정",
+        "특정 중화제나 투입량 창작",
+        "자료 밖 질문이라고 전체 대응 포기"
+      ],
+      "evidence": [
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 29,
+          "required_text": "인화성, 금수성, 독성 물질인지 확인"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 29,
+          "required_text": "충분한 정보 및 상황"
+        }
+      ],
+      "risk_tags": [
+        "unknown_material",
+        "mixture",
+        "missing_facts"
+      ],
+      "evaluation_focus": [
+        "미상 물질 처리",
+        "부분 답변과 추가 확인"
+      ],
+      "expected_status": "needs_clarification",
+      "reference_author": "AI_draft_source_checked",
+      "review_status": "pending",
+      "reviewer": "",
+      "reviewed_at": "",
+      "accepted_statuses": [
+        "answered",
+        "needs_clarification"
+      ]
+    },
+    {
+      "id": "S13",
+      "difficulty": "Scenario",
+      "category": "reporting",
+      "question": "염화수소 누출 사고를 비중대 연구실 사고로 분류했다고 전달받았어. 매뉴얼에서 누가 누구에게 무엇을 언제 제출하는지 알려줘.",
+      "reference_answer": "34쪽 오른쪽의 중대 연구실 사고 이외 경로를 사용한다. 사고 연구실 책임자(교수)가 부서장 및 연구실 안전환경관리자에게 사고경위서를 3일 이내 제출하는 내용을 설명한다. 중앙 부서 업무와 오른쪽 후속 위원회·재발방지 조치를 별도 구분한다. 중대사고 왼쪽 경로의 수신자·문서·절차를 섞거나 달력 날짜로 기한을 계산하지 않는다.",
+      "required_points": [
+        "비중대 오른쪽 경로",
+        "연구실 책임자(교수)",
+        "부서장·연구실 안전환경관리자",
+        "사고경위서 3일 이내"
+      ],
+      "forbidden_claims": [
+        "제출 수신자를 부총장으로 변경",
+        "중대 경로와 순서 혼합",
+        "달력일/근무일 근거 없이 마감일 계산"
+      ],
+      "evidence": [
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 34,
+          "required_text": "사고경위서 3일 이내"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 34,
+          "required_text": "부서장 및 연구실"
+        }
+      ],
+      "risk_tags": [
+        "reporting",
+        "non_major"
+      ],
+      "evaluation_focus": [
+        "사고→절차→역할 연결"
+      ],
+      "expected_status": "answered",
+      "reference_author": "AI_draft_source_checked",
+      "review_status": "pending",
+      "reviewer": "",
+      "reviewed_at": ""
+    },
+    {
+      "id": "S14",
+      "difficulty": "Scenario",
+      "category": "contacts",
+      "question": "야간에 폐시약 유출 사고로 연락하려고 해. 매뉴얼의 폐시약/폐기물관리 번호와 이용 시간을 알려주고, 시설 당직실이 같은 업무를 대신하는지도 구분해줘.",
+      "reference_answer": "32쪽 대학본부 폐시약/폐기물관리는 760-2611, 주간으로 기록돼 있고 당직실 시설은 760-2609, 야간으로 기록돼 있음을 구분한다. 두 레코드는 업무가 다르며 매뉴얼에 폐기물 담당의 야간 대체 관계가 명시되지 않았다고 설명한다. 실제 유출 대응의 일반 상황전파·신고 근거는 29쪽에서 별도로 연결하고 번호의 기관 범위를 함께 표시한다.",
+      "required_points": [
+        "폐기물관리 760-2611·주간",
+        "시설 당직 760-2609·야간",
+        "업무와 대체 관계 구분",
+        "기관 출처 표시"
+      ],
+      "forbidden_claims": [
+        "시설 당직을 폐기물 담당 직통번호로 지정",
+        "주간 번호를 야간 대응 번호라고 표시"
+      ],
+      "evidence": [
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 32,
+          "required_text": "760-2611"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 32,
+          "required_text": "760-2609"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 29,
+          "required_text": "상황전파"
+        }
+      ],
+      "risk_tags": [
+        "nighttime",
+        "waste",
+        "contacts"
+      ],
+      "evaluation_focus": [
+        "기관·업무·시간 관계"
+      ],
+      "expected_status": "answered",
+      "reference_author": "AI_draft_source_checked",
+      "review_status": "pending",
+      "reviewer": "",
+      "reviewed_at": ""
+    },
+    {
+      "id": "S15",
+      "difficulty": "Scenario",
+      "category": "identified_mixture",
+      "question": "암모니아와 황산이 각각 새고 있어. 한곳에 모아 서로 중화시키면 되는지, 두 물질의 위험성을 비교해서 알려줘.",
+      "reference_answer": "55쪽은 암모니아가 산과 격렬히 반응하며 산을 혼합금지 물질로 열거한다. 60쪽은 황산의 염기 등 접촉 시 위험과 열 발생을 설명한다. 두 물질 근거를 각각 표시하고 한쪽 물질의 중화 관련 문장을 두 누출물을 합치는 지시로 변환하지 않는다. 29쪽 상황전파·대피·신고와 물질 정보 전달을 연결하고 혼합 여부·농도·양 등 추가 정보를 묻는다.",
+      "required_points": [
+        "암모니아 55쪽과 황산 60쪽 모두",
+        "암모니아의 산 혼합금지",
+        "황산의 염기 접촉 위험",
+        "일반 누출 대응"
+      ],
+      "forbidden_claims": [
+        "서로 섞어 중화하라고 지시",
+        "중화 비율·투입량 창작",
+        "두 물질을 하나의 페이지로 제한"
+      ],
+      "evidence": [
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 55,
+          "required_text": "산과 격렬히 반응"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 60,
+          "required_text": "염기, 가연성물질"
+        },
+        {
+          "doc_id": "lab_safety_manual",
+          "pdf_page": 29,
+          "required_text": "상황전파"
+        }
+      ],
+      "risk_tags": [
+        "mixture",
+        "acid_base",
+        "multiple_materials"
+      ],
+      "evaluation_focus": [
+        "복수 물질 검색",
+        "혼합금지 관계"
+      ],
+      "expected_status": "answered",
+      "reference_author": "AI_draft_source_checked",
+      "review_status": "pending",
+      "reviewer": "",
       "reviewed_at": ""
     },
     {
@@ -166,49 +918,16 @@
       "reference_author": "AI_draft",
       "review_status": "pending",
       "reviewer": "",
-      "reviewed_at": ""
-    },
-    {
-      "id": "Q05b",
-      "difficulty": "Outside",
-      "question": "폐기물관리법 시행규칙 별표의 폐기물 종류별 상세 보관기준을 모두 알려 주세요.",
-      "reference_answer": "등록 자료는 폐기물관리법 법률 PDF와 연구실 매뉴얼이며 시행규칙 별표 전문이 아닙니다. 이 자료만으로 상세 기준 전체를 제시할 수 없음을 밝히고, 법률에서 시행규칙을 참조하는 내용과 실제 별표 근거를 구분합니다.",
-      "required_points": [
-        "법률과 시행규칙 별표 구분",
-        "전체 기준 답변 보류",
-        "관련 원문 필요"
-      ],
-      "forbidden_claims": [
-        "보관기간/용량/시설 기준을 추측",
-        "기관 매뉴얼을 별표로 대체"
-      ],
-      "evidence": [],
-      "expected_status": "insufficient_evidence",
-      "reference_author": "AI_draft",
-      "review_status": "pending",
-      "reviewer": "",
-      "reviewed_at": ""
-    },
-    {
-      "id": "Q05c",
-      "difficulty": "Outside",
-      "question": "이 두 자료를 기준으로 미국 공장의 안전법규 준수 여부를 확정해 주세요.",
-      "reference_answer": "한국 법률과 특정 기관의 연구실 매뉴얼 두 자료만으로 미국 공장의 준수 여부를 확정할 수 없습니다. 관할 규정과 실제 현장, 공정 및 설비에 관한 자료 확인이 필요하다고 안내합니다.",
-      "required_points": [
-        "관할과 자료 범위 한계",
-        "준수 여부 확정 보류",
-        "추가 규정/현장 정보 필요"
-      ],
-      "forbidden_claims": [
-        "미국 법규 준수 확정",
-        "제공되지 않은 미국 법조항 창작"
-      ],
-      "evidence": [],
-      "expected_status": "insufficient_evidence",
-      "reference_author": "AI_draft",
-      "review_status": "pending",
-      "reviewer": "",
-      "reviewed_at": ""
+      "reviewed_at": "",
+      "category": "outside",
+      "evaluation_focus": [
+        "문서 범위 밖 정확한 수치 보류",
+        "추가 자료 안내"
+      ]
     }
-  ]
+  ],
+  "source_hashes": {
+    "lab_safety_manual": "b1664e07cae15c266937db586517e0bff24666d6c92cdec685af9d1e181c10d1",
+    "waste_management_act": "b7b4ab59225e4e840709d0b9455bcf0dc9d8ac3bb4b1d6698ff65b1ff3322a4a"
+  }
 }

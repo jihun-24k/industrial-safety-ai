@@ -63,7 +63,7 @@ class HumanEvaluationTests(unittest.TestCase):
             response=MagicMock()
             response.content=json.dumps({'answer':'Test response [real]','status':'answered','citation_ids':['real']})
             response.usage_metadata=None
-            with patch.object(e,'embeddings'),patch.object(e,'search',return_value=context),patch('langchain_openai.ChatOpenAI') as llm:
+            with patch.object(e,'embeddings'),patch.object(e,'safety_retrieve',return_value={**context,'safety_workflow':{}}),patch('langchain_openai.ChatOpenAI') as llm:
                 llm.return_value.invoke.return_value=response
                 run=e.run_cases(cfg,[case],run_live=True)
                 messages=llm.return_value.invoke.call_args.args[0]

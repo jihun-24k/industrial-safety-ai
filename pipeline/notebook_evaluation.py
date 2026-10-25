@@ -13,11 +13,13 @@ import re
 import time
 import uuid
 
+from pipeline.retrieval_context import evidence_rows, path_text
+from pipeline.safety_workflow import retrieve as safety_retrieve, ANSWER_POLICY, generation_requirements, ensure_contact_details, display_answer
 from pipeline.pdf_pipeline import read_json, read_lines, write_json, resolve_pointer, search, embeddings
 
 WEIGHTS = {'accuracy':30, 'completeness':25, 'grounding':25, 'scope':15, 'clarity':5}
 RUBRIC_LABELS = {'accuracy':'사실 정확성', 'completeness':'조건과 필수 내용', 'grounding':'근거 일치', 'scope':'범위와 불확실성', 'clarity':'전달 명확성'}
-PROMPT_VERSION = 'safeops-linked-sources-v2'
+PROMPT_VERSION = 'safeops-safety-workflow-v7-internal-pictograms'
 
 
 def review_version(cases):
@@ -53,19 +55,23 @@ def evidence_hits(case, rows):
 
 def structural_checks(case, item):
     rows=item['retrieval']['results']
-    valid={r['chunk_id'] for r in rows+item['retrieval'].get('linked_results',[])}
+    combined=evidence_rows(item['retrieval'])
+    valid={r['chunk_id'] for r in combined}
     answer=item['answer']
     citations=answer['citation_ids']
-    return {**evidence_hits(case,rows), 'citations_exist_in_context':all(c in valid for c in citations),
+    return {**evidence_hits(case,rows),
+            'combined_candidate_recall':evidence_hits(case,combined)['candidate_recall_at_k'],
+            'graph_candidate_recall':evidence_hits(case,item['retrieval'].get('graph_results',[]))['candidate_recall_at_k'],
+            'citations_exist_in_context':all(c in valid for c in citations),
             'answered_has_citation':bool(citations) if answer['status']=='answered' else None,
-            'status_matches_draft':answer['status']==case['expected_status'],
+            'status_matches_draft':answer['status'] in case.get('accepted_statuses',[case['expected_status']]),
             'note':'形式/근거 후보 점검이며 의미 정확성이나 안전성의 자동 판정이 아닙니다.'.replace('形式','형식')}
 
 
 def cache_key(cfg, cases, model, k):
     current=resolve_pointer(cfg['output_root'],'current.json')
     payload={'index':read_json(current/'manifest.json'),'questions':[(c['id'],c['question']) for c in cases],
-             'model':model,'top_k':k,'prompt_version':PROMPT_VERSION}
+             'model':model,'top_k':k,'prompt_version':PROMPT_VERSION,'graph':cfg.get('graph',{}),'official_web':cfg.get('official_web',{})}
     return hashlib.sha256(json.dumps(payload,sort_keys=True,ensure_ascii=False).encode()).hexdigest()[:20]
 
 
@@ -98,10 +104,15 @@ def run_cases(cfg, cases, model='gpt-4o', top_k=5, env_file=None, run_live=False
 JSON 객체만 반환하세요: {"answer":"한국어 답변", "status":"answered 또는 insufficient_evidence 또는 needs_clarification 또는 needs_review", "citation_ids":["실제 사용한 청크ID"]}.
 존재하는 청크라도 질문의 답을 뒷받침하지 못하면 인용하지 마세요.
 연결 근거는 적용 후보입니다. 실제 사고 상황으로 단정하지 마세요. 일반 지침과 물질별 지침의 조건·제한을 보존하고, 화재 지침의 금지조건을 누락하지 마세요. 피부 세척, 용기 물 유입, 소화용 물 사용을 같은 조치로 합치지 마세요. 연락처의 최신성·구내번호·다른 번호와의 동일성은 확인된 범위만 설명하세요.'''
+    system += '\n' + ANSWER_POLICY
     for case in cases:
         started=time.perf_counter()
-        retrieval=search(cfg,embedder,case['question'],top_k)
-        context='\n\n'.join(f"[{r['chunk_id']}] {r['filename']} / PDF {r['pdf_page_start']}쪽 / 유형 {r['doc_type']}\n{r['text']}" for r in retrieval['results']+retrieval.get('linked_results',[]))
+        retrieval=safety_retrieve(cfg,embedder,case['question'],top_k,
+                                  web_enabled=cfg.get('official_web',{}).get('enabled',True))
+        context='\n\n'.join(f"[{r['chunk_id']}] {r.get('source_url') or r['filename']} / PDF {r['pdf_page_start']}쪽 / 유형 {r['doc_type']}\n{path_text(r)}\n{r['text']}" for r in evidence_rows(retrieval))
+        context += '\n[근거 확보 현황]\n' + json.dumps(retrieval['safety_workflow'],ensure_ascii=False)
+        material_matches = retrieval.get('material_matches', [])
+        context += '\n[필수 답변 구성]\n' + generation_requirements(evidence_rows(retrieval), material_matches)
         try:
             response=llm.invoke([SystemMessage(content=system),HumanMessage(content=f"질문: {case['question']}\n\n검색 근거:\n{context}")])
             answer=json.loads(response.content)
@@ -114,6 +125,9 @@ JSON 객체만 반환하세요: {"answer":"한국어 답변", "status":"answered
             # Save only completed items; rerun explicitly after resolving the issue.
             write_json(folder/'partial-run.json',run)
             raise RuntimeError(f"{case['id']} 생성 실패({type(exc).__name__}). 이전 완료 항목은 partial-run.json에 보존했습니다.") from None
+        answer['answer'], added = ensure_contact_details(answer['answer'], evidence_rows(retrieval), enabled=bool(material_matches), materials=material_matches)
+        answer['citation_ids'] = list(dict.fromkeys(answer['citation_ids'] + added))
+        answer['completion_source_ids'] = added
         item={'id':case['id'],'question':case['question'],'difficulty':case['difficulty'],
               'retrieval':retrieval,'answer':answer,'latency_seconds':round(time.perf_counter()-started,3),
               'usage':getattr(response,'usage_metadata',None)}
@@ -131,14 +145,20 @@ def comparison_html(cases, run):
     for c in cases:
         item=items.get(c['id'])
         parts.append(f"<h2>{esc(c['id'])} / {esc(c['difficulty'])}</h2><p>{esc(c['question'])}</p>")
+        if c.get('evaluation_focus'):
+            parts.append('<p>검증 초점: '+esc(' / '.join(c['evaluation_focus']))+'</p>')
         parts.append('<table><tr><th>검토용 모범답안 (AI 초안)</th><th>실제 생성 답변</th></tr><tr>')
         parts.append('<td>'+esc(c['reference_answer'])+'<hr>검토 상태: '+esc(c['review_status'])+'</td>')
-        parts.append('<td>'+esc(item['answer']['answer'] if item else '답변 미생성: 생성 실행이 꺼져 있고 저장된 결과도 없습니다. 모범답안을 실제 답변으로 대체하지 않습니다.')+'</td></tr></table>')
+        parts.append('<td>'+esc(display_answer(item['answer']['answer']) if item else '답변 미생성: 생성 실행이 꺼져 있고 저장된 결과도 없습니다. 모범답안을 실제 답변으로 대체하지 않습니다.')+'</td></tr></table>')
         parts.append('<p>필수 내용: '+esc(' / '.join(c['required_points']))+'</p><p>금지 주장: '+esc(' / '.join(c['forbidden_claims']))+'</p>')
         if item:
             parts.append('<pre>'+esc(json.dumps(structural_checks(c, item),ensure_ascii=False,indent=2))+'</pre>')
-            for row in item['retrieval']['results']:
-                parts.append(f"<details><summary>순위 {row['rank']} | {esc(row['filename'])} | PDF {row['pdf_page_start']}쪽 | {esc(row['chunk_id'])}</summary><pre>{esc(row['text'])}</pre></details>")
+            if item['retrieval'].get('safety_workflow'):
+                parts.append('<details><summary>항목별 근거 확보·웹 보완 현황</summary><pre>'+esc(json.dumps(item['retrieval']['safety_workflow'],ensure_ascii=False,indent=2))+'</pre></details>')
+            for row in evidence_rows(item['retrieval']):
+                retrieval_label = f"벡터 순위 {row['rank']}" if row.get('rank') else row.get('retrieval_reason', '연결 근거')
+                location = row.get('source_url') or f"PDF {row['pdf_page_start']}쪽"
+                parts.append(f"<details><summary>{esc(retrieval_label)} | {esc(row['filename'])} | {esc(location)} | {esc(row['chunk_id'])}</summary><pre>{esc(path_text(row))}\n{esc(row['text'])}</pre></details>")
     return '\n'.join(parts)+'</div>'
 
 
