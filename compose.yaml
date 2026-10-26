@@ -78,6 +78,9 @@ services:
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY in the root .env}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in the root .env}
+      TRANSLATION_MODEL: ${TRANSLATION_MODEL:-gpt-4o-mini}
+      TTS_MODEL: ${TTS_MODEL:-tts-1}
+      TTS_VOICE: ${TTS_VOICE:-nova}
       WHISPER_MODEL: ${WHISPER_MODEL:-small}
       HF_HOME: /models
       HF_HUB_DISABLE_TELEMETRY: "1"

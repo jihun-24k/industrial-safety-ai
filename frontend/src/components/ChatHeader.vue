@@ -1,12 +1,14 @@
 <script setup>
+import { speechLanguages } from '../utils/translation';
 import BrandLogo from './BrandLogo.vue';
 defineProps({
+  language: { type: String, default: 'ko' },
   demo: { type: Boolean, default: false },
   streaming: { type: Boolean, default: true },
   modeDisabled: { type: Boolean, default: false },
 });
 
-defineEmits(['open-menu', 'new-chat', 'update:streaming']);
+defineEmits(['open-menu', 'new-chat', 'update:language', 'update:streaming']);
 </script>
 
 <template>
@@ -17,7 +19,12 @@ defineEmits(['open-menu', 'new-chat', 'update:streaming']);
     </div>
     <div class="header-actions">
       <button class="history-toggle" @click="$emit('open-menu')">상담 기록</button>
-      <span class="language-label">한국어</span>
+      <label class="speech-language">
+        <span class="sr-only">답변 음성 언어</span>
+        <select :value="language" :disabled="modeDisabled || demo" aria-label="답변 음성 언어" @change="$emit('update:language', $event.target.value)">
+          <option v-for="item in speechLanguages" :key="item.code" :value="item.code">{{ item.label }}</option>
+        </select>
+      </label>
       <button
         type="button"
         class="stream-toggle"
