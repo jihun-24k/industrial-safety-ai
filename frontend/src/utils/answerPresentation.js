@@ -31,6 +31,11 @@ export function answerFragments(text = '') {
   return fragments;
 }
 
+function cleanContactLabel(label = '') {
+  if (/대학본부/.test(label) && /연구실\s*안전관리/.test(label)) return '대학본부 / 연구실 안전관리';
+  return label.replace(/^(?:(?:담당\s*)?연락처(?:는|은)?|담당\s*부서(?:는|은)?|문의처(?:는|은)?)\s*[:：]?\s*/, '').trim();
+}
+
 // Use the institution immediately attached to this number, not the whole paragraph.
 export function contactName(contact = {}) {
   const number = (contact.dialNumber || contact.number || '').replace(/[ -]/g, '');
@@ -38,7 +43,7 @@ export function contactName(contact = {}) {
   if (number === '112') return '112 경찰';
   // Display alias only when the supplied label names this institution.
   if (/원주\s*세브란스/.test(contact.name || contact.context || '')) return '원주세브란스 기독병원';
-  if (contact.name) return contact.name;
+  if (contact.name) return cleanContactLabel(contact.name);
   const context = (contact.context || '').replace(/\*\*/g, '');
   const offset = context.indexOf(contact.number || '');
   const prefix = offset >= 0 ? context.slice(0, offset) : context;
@@ -49,16 +54,22 @@ export function contactName(contact = {}) {
 export function answerContacts(text = '') {
   const contacts = [];
   const seen = new Set();
-  // Complete Korean phone numbers or explicit emergency service numbers only.
-  // A local number such as 760-2796 is retained in the answer but never auto-completed.
-  const pattern = /(?<![\d+\-])(0(?:2|\d{2})[ -]?\d{3,4}[ -]?\d{4}|1(?:19|12))(?![\d\-])/g;
+  // User-confirmed operating rule: department local numbers use Seoul (02).
+  // External institutions and already complete numbers retain their original numbers.
+  const pattern = /(?<![\d+\-])(0(?:2|\d{2})[ -]?\d{3,4}[ -]?\d{4}|1(?:19|12)|[1-9]\d{2,3}-\d{4})(?![\d\-])/g;
   for (const line of text.split('\n')) {
     for (const match of line.matchAll(pattern)) {
-      const normalized = match[0].replace(/[ -]/g, '');
+      const rawNumber = match[0];
+      const local = /^[1-9]\d{2,3}-\d{4}$/.test(rawNumber);
+      const prefix = line.slice(0, match.index).replace(/\*\*/g, '');
+      const label = prefix.split(/[。.!?]|(?:합니다|하세요|입니다)[.]?|[,;]/).at(-1).replace(/^[\s#*\-\d.)]+/, '').replace(/^담당\s*부서\s*[:：]\s*/, '').replace(/\s*[—–:：(（-]\s*$/, '').trim();
+      const department = /대학본부|연구실\s*안전관리|담당\s*부서|당직실|시설(?:팀|부|과)|폐시약|폐기물관리|소방\s*안전관리/.test(label) && !/병원|의료원|소방서|경찰서|지구대/.test(label);
+      if (local && !department) continue;
+      const normalized = (local ? '02' : '') + rawNumber.replace(/[ -]/g, '');
       if (seen.has(normalized)) continue;
       if (normalized.length === 3 && !/(전화|신고|연락|구조|소방|경찰|119|112)/.test(line.replace(match[0], ''))) continue;
       seen.add(normalized);
-      contacts.push({ number: match[0], dialNumber: normalized, context: line.replace(/^[\s#*-]+/, '').trim(), dialable: true });
+      contacts.push({ number: local ? `02-${rawNumber}` : rawNumber, rawNumber, name: local ? cleanContactLabel(label) : undefined, dialNumber: normalized, areaCodeSource: local ? 'user_confirmed_department_rule' : undefined, context: line.replace(/^[\s#*-]+/, '').trim(), dialable: true });
     }
   }
   return contacts;

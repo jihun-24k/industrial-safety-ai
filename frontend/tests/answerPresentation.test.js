@@ -51,3 +51,19 @@ test('card evidence uses only its own citations and preserves document labels', 
   assert.deepEqual(sectionEvidence('피부와 눈에 자극을 줄 수 있습니다.'), []);
   assert.deepEqual(sectionEvidence('설명 (문서 1, 2).'), ['(문서 1, 2)']);
 });
+
+test('confirmed 02 rule applies to local department numbers only', () => {
+  const contacts = answerContacts('- 담당 부서: 대학본부 / 연구실 안전관리 — 760-2796 (주간).\n원주세브란스 기독병원(033-741-0114)\n병원: 741-0114\n소방서: 765-2119\n시설팀: 760-2609\n신고: 119');
+  assert.deepEqual(contacts.map(c => c.number), ['02-760-2796', '033-741-0114', '02-760-2609', '119']);
+  assert.equal(contactName(contacts[0]), '대학본부 / 연구실 안전관리');
+  assert.equal(contacts[0].dialNumber, '027602796');
+  assert.equal(contacts[0].rawNumber, '760-2796');
+  assert.equal(contacts[0].areaCodeSource, 'user_confirmed_department_rule');
+  assert.equal(answerContacts('대학본부 / 연구실 안전관리: 033-760-2796')[0].number, '033-760-2796');
+});
+
+test('department card titles omit contact introductory wording', () => {
+  const [contact] = answerContacts('연락처는 대학본부 연구실 안전관리 부서: 760-2796');
+  assert.equal(contactName(contact), '대학본부 / 연구실 안전관리');
+  assert.equal(contactName({name:'연락처는 대학본부 연구실 안전관리 부서',number:'02-760-2796'}), '대학본부 / 연구실 안전관리');
+});
