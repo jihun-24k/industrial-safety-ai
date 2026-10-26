@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { answerSections, answerContacts, contactName, answerFragments, compactSources, isInformationOnly, questionForReply, sectionEvidence } from '../src/utils/answerPresentation.js';
+import { answerSections, displayAnswerSections, answerContacts, contactName, answerFragments, compactSources, contactCondensedText, isInformationOnly, questionForReply, sectionEvidence } from '../src/utils/answerPresentation.js';
 
 test('answer sections retain every paragraph, repeated heading and literal HTML', () => {
   const text='서문\n\n## 상황 확인\n첫 내용\n\n## 상황 확인\n<script>alert(1)</script>\n끝';
@@ -96,4 +96,36 @@ test('information comparisons hide contacts but actual incidents and contact req
   for (const q of ['염산을 쏟았어 위험성도 알려줘', '암모니아 누출됐어', '위험성 비교와 담당 연락처 알려줘']) assert.equal(isInformationOnly(q), false);
   const messages = [{role:'user',text:'염산을 쏟았어'}, {role:'assistant'}, {role:'user',text:'NFPA 비교해줘'}, {role:'assistant'}];
   assert.equal(questionForReply(messages,messages[3]), 'NFPA 비교해줘');
+});
+
+test('directory rows move to cards with evidence and hours, unresolved rows remain', () => {
+  const row = '- 담당 부서: 대학본부 / 연구실 안전관리 — 760-2796 (주간). 문서에 수록된 기관 연락처. (안전 매뉴얼 p.32)';
+  const text = `즉시 보고하세요.\n\n연락 안내\n${row}`;
+  const contacts = answerContacts(text);
+  assert.equal(contactCondensedText(text, contacts), '즉시 보고하세요.\n\n(안전 매뉴얼 p.32)');
+  assert.equal(contacts[0].availability, '주간');
+  assert.deepEqual(contacts[0].sources, ['(안전 매뉴얼 p.32)']);
+  assert.equal(contactCondensedText(text, []), text);
+  const hospital = '- 병원: 병원 — 741-0114 (주간/야간). 문서에 수록된 기관 연락처.';
+  assert.ok(contactCondensedText(text+'\n'+hospital, contacts).includes(hospital));
+});
+
+test('department and hospital sections combine with concise names and one source', () => {
+  const text = '1. 즉시 조치: 원문 유지\n4. 담당 부서: 대학본부 연구실 안전관리 부서에 연락합니다. 전화번호는 760-2796이며, 주간에 연락 가능합니다 (안전 매뉴얼 p.32).\n5. 병원: 원주세브란스 기독병원에 연락합니다. 전화번호는 033-741-0114이며, 주간 및 야간에 연락 가능합니다 (안전 매뉴얼 p.32).';
+  const sections = displayAnswerSections(text);
+  assert.equal(sections.length, 2);
+  assert.equal(sections[1].heading, '담당 연락처');
+  assert.equal(sections[1].text.split('(안전 매뉴얼 p.32)').length, 2);
+  assert.ok(sections[1].text.includes('원주세브란스 기독병원'));
+  assert.equal(sections[0].text, '원문 유지');
+});
+
+test('combined contacts retain purpose and availability in sentences', () => {
+  const text = '4. 담당 부서: 연구실 안전관리 담당 부서에 연락합니다. 전화번호는 760-2796이며, 주간에 연락 가능합니다 (안전 매뉴얼 p.32).\n5. 병원: 원주세브란스 기독병원에 연락하여 응급조치를 받습니다. 전화번호는 033-741-0114이며, 주간 및 야간에 연락 가능합니다 (안전 매뉴얼 p.32).';
+  const [section] = displayAnswerSections(text);
+  assert.equal(section.heading, '담당 연락처');
+  assert.ok(section.text.includes('연구실 안전관리 담당 부서에 연락합니다.'));
+  assert.ok(section.text.includes('원주세브란스 기독병원에 연락하여 응급조치를 받습니다.'));
+  assert.ok(section.text.includes('주간 및 야간에 연락 가능합니다'));
+  assert.ok(!section.text.includes('전화번호는'));
 });

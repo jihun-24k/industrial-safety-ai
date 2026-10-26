@@ -3,7 +3,7 @@ import { nextTick, ref } from 'vue';
 import ContactCards from './ContactCards.vue';
 import { translationFor, speechLanguages } from '../utils/translation';
 import SafetyAssistant from './SafetyAssistant.vue';
-import { answerSections, answerContacts, answerFragments, compactSources, isInformationOnly, questionForReply } from '../utils/answerPresentation';
+import { answerSections, displayAnswerSections, answerContacts, answerFragments, compactSources, contactCondensedText, isInformationOnly, questionForReply } from '../utils/answerPresentation';
 
 const props = defineProps({
   messages: { type: Array, default: () => [] },
@@ -21,6 +21,7 @@ const container = ref(null);
 const descriptions = ['누출과 확산 상황 확인', '화재 관련 근거 확인', '피부, 눈, 흡입 상황 확인'];
 const informational = message => isInformationOnly(questionForReply(props.messages, message));
 const contactsFor = message => informational(message) ? [] : (message.contacts || answerContacts(message.text));
+const sectionsFor = message => message.streaming ? answerSections(message.text) : displayAnswerSections(contactCondensedText(message.text, contactsFor(message)));
 async function scrollToBottom() {
   await nextTick();
   container.value?.scrollTo({ top: container.value.scrollHeight, behavior: 'smooth' });
@@ -69,9 +70,9 @@ defineExpose({ scrollToBottom });
               <h2>상황 확인</h2>
               <ul><li v-for="question in message.clarifyingQuestions" :key="question">{{ question }}</li></ul>
             </section>
-            <section v-for="(section, index) in answerSections(message.text)" :key="index" class="answer-section glass-card" :class="{ 'answer-section--immediate': /즉시|응급/.test(section.heading) }">
+            <section v-for="(section, index) in sectionsFor(message)" :key="index" class="answer-section glass-card" :class="{ 'answer-section--immediate': /즉시|응급/.test(section.heading) }">
               <div v-if="section.heading" class="answer-card-heading"><span class="answer-step" aria-hidden="true">{{ section.number || String(index + 1).padStart(2, '0') }}</span><h2>{{ section.heading }}</h2></div>
-              <div class="message-text"><template v-for="(fragment, fragmentIndex) in answerFragments(section.text)" :key="fragmentIndex"><span v-if="fragment.citation" class="citation-badge" :aria-label="`출처 ${fragment.text}`">{{ fragment.text }}</span><template v-else>{{ fragment.text }}</template></template><span v-if="message.streaming && index === answerSections(message.text).length - 1" class="dots">···</span></div>
+              <div class="message-text"><template v-for="(fragment, fragmentIndex) in answerFragments(section.text)" :key="fragmentIndex"><span v-if="fragment.citation" class="citation-badge" :aria-label="`출처 ${fragment.text}`">{{ fragment.text }}</span><template v-else>{{ fragment.text }}</template></template><span v-if="message.streaming && index === sectionsFor(message).length - 1" class="dots">···</span></div>
             </section>
             <details v-if="message.sources?.length" class="sources-card glass-card">
               <summary>근거 문서 확인 <span>{{ message.sources.length }}개</span></summary>

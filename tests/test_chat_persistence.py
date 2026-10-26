@@ -309,3 +309,13 @@ class ChatPersistenceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class IndependentIncidentTests(unittest.TestCase):
+    def test_prior_material_is_not_carried_into_new_incident(self):
+        (contextual,) = load_functions('contextual_search_question')
+        q = '화학약품이 누출됐고 한 사람이 어지러움을 호소해. 사람 보호, 현장 대응, 보고 순서로 설명해줘.'
+        history = [{'role':'user', 'content':'염산을 쏟았어'}]
+        self.assertEqual(contextual(q, '염화수소 위험', history), q)
+        self.assertIn('염산', contextual('그 다음은?', None, history))
+        self.assertEqual(contextual('그럼 물질을 모르겠어', None, history), '그럼 물질을 모르겠어')
