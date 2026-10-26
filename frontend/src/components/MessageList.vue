@@ -1,7 +1,8 @@
 <script setup>
 import { nextTick, ref } from 'vue';
+import ContactCards from './ContactCards.vue';
 import SafetyAssistant from './SafetyAssistant.vue';
-import { answerSections, answerContacts } from '../utils/answerPresentation';
+import { answerSections, answerContacts, answerFragments } from '../utils/answerPresentation';
 
 const props = defineProps({
   messages: { type: Array, default: () => [] },
@@ -65,9 +66,9 @@ defineExpose({ scrollToBottom });
               <h2>상황 확인</h2>
               <ul><li v-for="question in message.clarifyingQuestions" :key="question">{{ question }}</li></ul>
             </section>
-            <section v-for="(section, index) in answerSections(message.text)" :key="index" class="answer-section glass-card">
-              <h2 v-if="section.heading">{{ section.heading }}</h2>
-              <div class="message-text">{{ section.text }}<span v-if="message.streaming && index === answerSections(message.text).length - 1" class="dots">···</span></div>
+            <section v-for="(section, index) in answerSections(message.text)" :key="index" class="answer-section glass-card" :class="{ 'answer-section--immediate': /즉시|응급/.test(section.heading) }">
+              <div v-if="section.heading" class="answer-card-heading"><span class="answer-step" aria-hidden="true">{{ section.number || String(index + 1).padStart(2, '0') }}</span><h2>{{ section.heading }}</h2></div>
+              <div class="message-text"><template v-for="(fragment, fragmentIndex) in answerFragments(section.text)" :key="fragmentIndex"><span v-if="fragment.citation" class="citation-badge" :aria-label="`출처 ${fragment.text}`">{{ fragment.text }}</span><template v-else>{{ fragment.text }}</template></template><span v-if="message.streaming && index === answerSections(message.text).length - 1" class="dots">···</span></div>
             </section>
             <details v-if="message.sources?.length" class="sources-card glass-card">
               <summary>근거 문서 확인 <span>{{ message.sources.length }}개</span></summary>
@@ -79,23 +80,7 @@ defineExpose({ scrollToBottom });
             </button>
           </div>
           <aside v-if="!message.streaming" class="response-contacts" aria-label="답변 연락처">
-            <section v-for="contact in contactsFor(message)" :key="contact.number" class="contact-card glass-card">
-              <h2>담당 연락처</h2>
-              <p class="contact-context">{{ contact.context }}</p>
-              <strong class="contact-number">{{ contact.number }}</strong>
-              <p class="contact-note">{{ demo ? '디자인 예시 · 실제 전화 연결 없음' : '답변에 포함된 번호 · 기관과 최신성 확인 필요' }}</p>
-              <details v-if="!demo && contact.dialable" class="call-confirmation">
-                <summary class="call-button">☎ 전화하기</summary>
-                <p>현재 기관에 맞는 번호인지 확인한 뒤 전화 앱을 여세요.</p>
-                <a class="call-button" :href="`tel:${contact.dialNumber}`">{{ contact.number }} 전화 앱 열기</a>
-              </details>
-              <button v-else class="call-button" disabled>☎ 전화하기 · 미리보기</button>
-            </section>
-            <section v-if="!contactsFor(message).length" class="contact-card glass-card">
-              <h2>담당 연락처</h2>
-              <p>답변에서 통화 가능한 번호가 확인되지 않았어요.</p>
-              <p class="contact-note">기관의 비상연락망을 확인하세요. 지역번호나 담당자를 임의로 보충하지 않습니다.</p>
-            </section>
+            <ContactCards :contacts="contactsFor(message)" :demo="demo" />
           </aside>
         </div>
       </article>

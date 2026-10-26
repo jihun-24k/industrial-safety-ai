@@ -34,3 +34,67 @@
  .workspace:not(.is-welcome) .composer-wrap{padding-top:10px;padding-bottom:max(10px,env(safe-area-inset-bottom))}
  .workspace:not(.is-welcome) .composer-disclaimer{display:none}
 }
+
+/* Answer cards: clear section hierarchy with claim-level source badges. */
+.answer-section{padding:26px 28px;border:1px solid rgba(255,255,255,.9);box-shadow:0 8px 28px #40558a08}
+.answer-card-heading{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.answer-card-heading h2{font-size:22px;font-weight:750;line-height:1.4;letter-spacing:-.04em;margin:0;color:#263650}
+.answer-step{flex-shrink:0;display:grid;place-items:center;min-width:34px;height:34px;padding:0 8px;border-radius:11px;background:#e9eafd;color:#5b58b4;font-family:Manrope,sans-serif;font-size:13px;font-weight:800}
+.answer-section--immediate{background:linear-gradient(120deg,#ffffffed,#eef1ffdd);border-left:4px solid #7970df}
+.answer-section--immediate .answer-step{background:#7567d9;color:white}
+.answer-section .message-text{color:#3b4a63;line-height:1.95}
+.citation-badge{display:inline;box-decoration-break:clone;-webkit-box-decoration-break:clone;padding:3px 8px;margin:0 3px;border:1px solid #dce3ef;border-radius:7px;background:#eef2f8;color:#596b86;font-size:11px;font-weight:500;vertical-align:middle;white-space:normal;overflow-wrap:anywhere}
+.sources-card{background:#f6f8fcbf;border:1px dashed #cdd7e9;box-shadow:none}
+.sources-card summary{color:#516180;font-size:14px;font-weight:650}
+@media(max-width:680px){.answer-section{padding:22px 20px}.answer-card-heading h2{font-size:20px}.answer-card-heading{gap:10px;margin-bottom:14px}.citation-badge{font-size:11px}}
+
+/* Readable answer text at desktop and mobile sizes. */
+.answer-section .message-text{font-size:19px;line-height:1.9;letter-spacing:-.015em}
+.answer-card-heading h2{font-size:25px}
+.contact-card h2{font-size:20px;line-height:1.5}
+.citation-badge{font-size:13px;line-height:1.7}
+.sources-card summary{font-size:16px}
+@media(max-width:680px){.answer-section .message-text{font-size:18px;line-height:1.85}.answer-card-heading h2{font-size:23px}.contact-card h2{font-size:19px}.citation-badge{font-size:12px}}
+
+.section-evidence{margin-top:20px;padding-top:15px;border-top:1px solid #dce1ef;display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 14px;color:#64728b}
+.section-evidence-label{font-size:13px;font-weight:700;white-space:nowrap}
+.section-evidence ul{list-style:none;display:flex;flex-wrap:wrap;gap:8px;padding:0;margin:0;min-width:0}
+.section-evidence li{font-size:13px;line-height:1.6;padding:5px 10px;background:#eef1f8;border:1px solid #dce3ef;border-radius:8px;overflow-wrap:anywhere}
+.section-evidence-empty{font-size:13px;line-height:1.7}
+.section-reference-list{width:100%;font-size:13px;line-height:1.7}
+.section-reference-list summary{cursor:pointer;color:#596b89}
+.section-reference-list ul{margin-top:10px}
+
+/* Prominent section numbers at every viewport size. */
+.answer-step{min-width:42px;height:42px;border-radius:13px;font-size:20px;font-weight:800;color:#4e439c;background:#e5e2fb}
+.answer-section--immediate .answer-step{color:#fff;background:#7567d9}
+@media(max-width:680px){.answer-step{min-width:38px;height:38px;font-size:19px;border-radius:11px}}
+
+/* Keep the response readable; show contacts alongside only on wide screens. */
+.response-layout{grid-template-columns:minmax(0,1fr) minmax(260px,320px);gap:24px}
+.response-contacts{align-self:start}
+@media(max-width:1100px){
+ .response-layout{display:flex;flex-direction:column;gap:24px}
+ .response-main{width:100%}
+ .response-contacts{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+}
+@media(max-width:680px){
+ .response-contacts{display:flex;flex-direction:column;gap:14px}
+ .response-contacts .contact-card{width:100%}
+}
+
+/* Desktop contact rail lives outside the independently scrolling conversation. */
+.message-scroll{scrollbar-width:none;-ms-overflow-style:none}
+.message-scroll::-webkit-scrollbar{display:none;width:0;height:0}
+.desktop-contact-rail{display:none}
+.response-layout{display:flex;flex-direction:column}
+.response-main{width:100%}
+@media(min-width:1101px){
+ .chat-layout.has-contact-rail{display:grid;grid-template-columns:minmax(0,1440px) minmax(280px,340px);gap:24px;max-width:1840px;margin:0 auto;padding-right:32px}
+ .has-contact-rail .workspace{width:100%;min-height:0}
+ .desktop-contact-rail{display:flex;flex-direction:column;gap:18px;padding-top:120px;padding-bottom:28px;overflow:auto;scrollbar-width:none}
+ .desktop-contact-rail::-webkit-scrollbar{display:none}
+ .rail-label{font-size:14px;font-weight:700;color:#65728a;padding-left:4px}
+ .response-contacts{display:none}
+}
+@media(max-width:1100px){.response-contacts{width:100%}}
