@@ -500,6 +500,9 @@ def split_history_for_summary(messages: list[dict], budget: int = HISTORY_TOKEN_
 
 def contextual_search_question(question: str, summary: str | None, messages: list[dict],
                                limit_chars: int = 4000) -> str:
+    followup = question.strip().startswith(('그 다음', '그다음', '그럼', '그러면', '이어서', '아까', '방금', '그 물질', '이 물질', '해당 물질', '그 경우', '그 상황'))
+    if not followup or any(word in question for word in ('모르는', '모르겠', '미확인', '알 수 없는', '다른 사고', '새로운 사고')):
+        return question
     prior_users = [m["content"] for m in messages if m["role"] == "user"][-6:]
     parts = ([f"이전 대화 요약: {summary}"] if summary else [])
     parts += [f"이전 사용자 질문: {content}" for content in prior_users]
@@ -801,6 +804,27 @@ def doc_label(doc) -> str:
         label += f" · {extra[:30]}{'…' if len(extra) > 30 else ''}"
     return label
 
+def resolve_document_citations(answer, docs):
+    """생성 당시 검색 순번으로만 출처를 해석한다. 축약·반복 표기를 모두 처리한다."""
+    pattern = r"[\(\[]\s*문서\s*\d+(?:\s*,\s*(?:문서\s*)?\d+)*\s*[\)\]]"
+    cited = []
+
+    def replace(match):
+        labels = []
+        for number in map(int, re.findall(r"\d+", match.group(0))):
+            if 1 <= number <= len(docs):
+                cited.append(number)
+                labels.append(doc_label(docs[number - 1]).split(" · ")[0].replace(".pdf", ""))
+            else:
+                # 없는 번호를 다른 문서로 대체하거나 근거가 있는 것처럼 숨기지 않는다.
+                labels.append("출처 확인 필요")
+        return "(" + ", ".join(dict.fromkeys(labels)) + ")"
+
+    resolved = re.sub(pattern, replace, answer)
+    sources = list(dict.fromkeys(doc_label(docs[n - 1]) for n in cited))
+    return resolved, sources
+
+
 def build_prompt(context: str, question: str, include_markers: bool = True) -> str:
     ending = ("### ANSWER_START\n<답변>\n### ANSWER_END" if include_markers
               else "답변 본문만 출력하세요.")
@@ -853,6 +877,8 @@ async def prepare_rag(rag_request: RAGRequest, search_question: str | None = Non
     retrieval_q = search_question or q
     for wrong, right in typo_fixes:   # 이전 대화가 붙은 검색 질문에도 같은 보정 적용
         retrieval_q = retrieval_q.replace(wrong, right)
+
+    unknown_material = False
     plan = await asyncio.to_thread(make_search_plan, retrieval_q) if (USE_SEARCH_PLAN and is_incident(q)) else None
     queries = [(None, retrieval_q)]
     if plan:
@@ -891,6 +917,15 @@ async def prepare_rag(rag_request: RAGRequest, search_question: str | None = Non
         vector_rows = [r for r in vector_rows if evidence_eligible(
             r, institution_scope=rag_request.institution_scope,
             accident_classification=rag_request.accident_classification, timing=graph.get('timing'))]
+    if use_team and is_incident(q) and not graph.get('matched_materials'):
+        unknown_material = True
+        folder = team_pipeline.resolve_pointer(TEAM_CFG['output_root'], 'current.json')
+        catalog = team_pipeline.read_json(folder / 'material_catalog.json')
+        material_pages = {item['pdf_page'] for item in catalog}
+        def general_evidence(row):
+            return not (row.get('doc_id') == 'lab_safety_manual' and row.get('pdf_page_start') in material_pages) and row.get('content_type') != 'reviewed_pictogram_supplement' and row.get('doc_type') != 'official_web'
+        vector_rows = [row for row in vector_rows if general_evidence(row)]
+        graph['results'] = [row for row in graph.get('results', []) if general_evidence(row)]
     selected, workflow = await asyncio.to_thread(
         assemble_safety, vector_rows, graph, max_docs=MAX_CONTEXT_DOCS,
         web_enabled=use_team and TEAM_CFG.get('official_web', {}).get('enabled', True))
@@ -904,7 +939,11 @@ async def prepare_rag(rag_request: RAGRequest, search_question: str | None = Non
         context += "\n[근거 확보 현황]\n" + json.dumps(workflow, ensure_ascii=False)
         context += "\n[필수 답변 구성]\n" + generation_requirements(
             selected, graph.get("matched_materials", []), citation_style="number", question=q)
+    if unknown_material:
+        context += "\n[물질 확인 상태] 물질 미확인. 검색 문서나 이전 답변의 물질명을 사고 물질로 추정하지 않는다. 일반 사고 대응 근거만 사용해 사용자가 요청한 사람 보호 → 현장 대응 → 보고 순서로 설명한다. 개별 물질 반응·중화·소화법을 확정하지 않는다. 물질명·제품 라벨/SDS 확인을 요청하되 확인 전에도 근거 있는 일반 대응을 안내한다."
+        plan = {**(plan or {}), 'clarifying_questions': ['누출된 화학약품의 이름이나 제품 라벨/SDS를 확인할 수 있나요?']}
     return {
+        "use_history": retrieval_q != q and not unknown_material,
         "q": q,
         "emergency": emergency,
         "plan": plan,
@@ -939,17 +978,7 @@ def finish_rag(state: dict, raw: str) -> dict:
         enabled=not is_information_only(q) and bool(state.get("graph_retrieval", {}).get("matched_materials")),
         materials=state.get("graph_retrieval", {}).get("matched_materials", []))
     base["graph_retrieval"]["completion_source_ids"] = completion_source_ids
-    cited = [int(n) for n in re.findall(r"문서\s*(\d+)", final)]
-    used = [docs[n - 1] for n in cited if 1 <= n <= len(docs)] or docs
-    sources = list(dict.fromkeys(doc_label(doc) for doc in used))
-
-    def to_label(match):
-        nums = [int(n) for n in re.findall(r"\d+", match.group(0))]
-        labels = [doc_label(docs[n - 1]).split(" · ")[0].replace(".pdf", "")
-                  for n in nums if 1 <= n <= len(docs)]
-        return f"({', '.join(dict.fromkeys(labels))})" if labels else ""
-
-    final = re.sub(r"\(\s*문서\s*\d+(?:\s*,\s*문서\s*\d+)*\s*\)", to_label, final)
+    final, sources = resolve_document_citations(final, docs)
     if emergency:
         final = EMERGENCY_LINE + "\n\n" + final
     if state.get("typo_fixes"):   # 어떻게 고쳐 이해했는지 알림
@@ -984,7 +1013,7 @@ async def rag_query(request: Request, rag_request: RAGRequest = Body(...)):
             raw = "N/A"
         else:
             llm = ChatOpenAI(model=LLM_MODEL, temperature=0.2, timeout=30)
-            messages = history_messages(chat["summary"], chat["turns"])
+            messages = history_messages(chat["summary"], chat["turns"]) if state.get("use_history", False) else []
             messages.append(HumanMessage(content=build_prompt(state["context"], state["q"])))
             message = await asyncio.to_thread(llm.invoke, messages)
             raw = chunk_text(message.content).strip()
@@ -1015,7 +1044,7 @@ async def rag_query_stream(request: Request, rag_request: RAGRequest = Body(...)
             yield sse_event("status", {"phase": "generating", "message": "답변을 작성하고 있어요…"})
             llm = ChatOpenAI(model=LLM_MODEL, temperature=0.2, timeout=30)
             parts = []
-            messages = history_messages(chat["summary"], chat["turns"])
+            messages = history_messages(chat["summary"], chat["turns"]) if state.get("use_history", False) else []
             messages.append(HumanMessage(content=build_prompt(
                 state["context"], state["q"], include_markers=False)))
             async for chunk in llm.astream(messages):

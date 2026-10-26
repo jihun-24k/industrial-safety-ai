@@ -6,6 +6,7 @@ defineProps({ contacts: { type: Array, default: () => [] }, demo: Boolean });
             <section v-for="contact in contacts" :key="contact.number" class="contact-card glass-card">
               <h2>{{ contactName(contact) }}</h2>
               <strong class="contact-number">{{ contact.number }}</strong>
+              <span v-if="contact.availability" class="contact-note">{{ contact.availability }}</span>
               <details v-if="!demo && contact.dialable" class="call-confirmation">
                 <summary class="call-button">☎ 전화하기</summary>
                 <p>현재 기관에 맞는 번호인지 확인한 뒤 전화 앱을 여세요.</p>
