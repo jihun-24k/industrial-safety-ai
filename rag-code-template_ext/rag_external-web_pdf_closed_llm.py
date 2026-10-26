@@ -841,7 +841,7 @@ def make_context(docs, limit_chars: int = 24000) -> str:
 
 async def prepare_rag(rag_request: RAGRequest, search_question: str | None = None) -> dict:
     """공통 검색 단계. 일반 JSON 응답과 스트리밍 응답이 같은 근거를 사용하게 한다."""
-    q = rag_request.prompt.strip()
+    q, typo_fixes, typo_questions = correct_material_typos(rag_request.prompt.strip())   # 물질명 오탈자 보정
     emergency = is_emergency(q)
     use_team = rag_request.source == "pdf" and USE_TEAM_INDEX
     vectorstore = VECTORSTORE_PDF if rag_request.source == "pdf" else VECTORSTORE_WEB
@@ -851,6 +851,8 @@ async def prepare_rag(rag_request: RAGRequest, search_question: str | None = Non
             detail=f"❗ {rag_request.source.upper()} 지식베이스가 준비되지 않았습니다. 먼저 자료를 업로드해 주세요.",
         )
     retrieval_q = search_question or q
+    for wrong, right in typo_fixes:   # 이전 대화가 붙은 검색 질문에도 같은 보정 적용
+        retrieval_q = retrieval_q.replace(wrong, right)
     plan = await asyncio.to_thread(make_search_plan, retrieval_q) if (USE_SEARCH_PLAN and is_incident(q)) else None
     queries = [(None, retrieval_q)]
     if plan:
@@ -910,6 +912,8 @@ async def prepare_rag(rag_request: RAGRequest, search_question: str | None = Non
         "docs": docs,
         "context": context,
         "graph_retrieval": graph_metadata,
+        "typo_fixes": typo_fixes,
+        "typo_questions": typo_questions,
     }
 
 
@@ -923,7 +927,7 @@ def finish_rag(state: dict, raw: str) -> dict:
         "prompt": q,
         "needs_review": emergency,
         "search_queries": [query for _, query in queries[1:]],
-        "clarifying_questions": [] if is_information_only(q) else (plan or {}).get("clarifying_questions", []),
+                        "clarifying_questions": state.get("typo_questions", []) + ([] if is_information_only(q) else (plan or {}).get("clarifying_questions", [])),
         "graph_retrieval": state.get("graph_retrieval", {}),
     }
     if not final or final.upper().startswith("N/A"):
@@ -948,6 +952,9 @@ def finish_rag(state: dict, raw: str) -> dict:
     final = re.sub(r"\(\s*문서\s*\d+(?:\s*,\s*문서\s*\d+)*\s*\)", to_label, final)
     if emergency:
         final = EMERGENCY_LINE + "\n\n" + final
+    if state.get("typo_fixes"):   # 어떻게 고쳐 이해했는지 알림
+        note = ", ".join(f"'{a}' → '{b}'" for a, b in state["typo_fixes"])
+        final = f"※ 질문의 {note}(으)로 이해하고 답했습니다. 다른 물질이면 다시 알려주세요.\n\n" + final
     return {**base, "answer": final, "sources": sources, "handoff": False}
 
 
