@@ -1,3 +1,4 @@
+import re
 """Shared evidence coverage and answer policy for API and notebook evaluation."""
 from pipeline.retrieval_context import evidence_rows, select_context_rows
 from pipeline import official_web
@@ -102,8 +103,10 @@ def retrieve(cfg, embedder, question, k=5, *, web_enabled=False):
     return {**retrieval, 'context_results': selected, 'safety_workflow': workflow}
 
 
-def generation_requirements(rows, materials, *, citation_style='chunk'):
+def generation_requirements(rows, materials, *, citation_style='chunk', question=''):
     """Concrete output requirements from retrieved facts, never evaluation references."""
+    if is_information_only(question):
+        return '정보 조회·비교 질문이다. 요청한 값·차이·의미와 근거만 설명한다. 사고가 발생했다고 가정하지 않는다. 즉시 조치, 현장 확인 질문, 담당 부서, 병원, 신고 및 연락처를 덧붙이지 않는다.'
     if not materials:
         return ('질문에서 요구한 단계와 항목을 빠짐없이 설명한다. 질문의 핵심 제목에 해당하는 원문을 우선하여 '
                 '준비 조건·예외·제한사항을 함께 정리한다. 다른 구간의 일반론으로 요청된 내용을 대신하지 않는다.')
@@ -155,3 +158,10 @@ def display_answer(answer):
     if lines and all(line.startswith('- ') and ('GHS' in line or '검토된 위험기호가 없습니다' in line) for line in lines):
         return body.rstrip()
     return answer
+
+
+def is_information_only(question):
+    """Conservative information intent; incident/contact requests take precedence."""
+    if re.search(r'연락|전화|신고|담당|병원|구조|쏟|튀었|튄|묻었|접촉했|누출됐|누출된|누출 중|새고|다쳤|쓰러|기침|어지러|불이 났|불이 나|화재가|발생했|발생한|대응|대처|응급', question):
+        return False
+    return bool(re.search(r'비교|차이|뜻|의미|정의|NFPA|GHS|위험성|등급|특성|분류|기준', question, re.I))

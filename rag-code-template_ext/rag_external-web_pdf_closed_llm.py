@@ -70,7 +70,7 @@ PROJECT_ROOT = BASE_DIR.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 from pipeline.retrieval_context import path_text, select_context_rows
-from pipeline.safety_workflow import assemble as assemble_safety, ANSWER_POLICY, generation_requirements, ensure_contact_details
+from pipeline.safety_workflow import assemble as assemble_safety, ANSWER_POLICY, generation_requirements, ensure_contact_details, is_information_only
 from pipeline.knowledge_graph import evidence_eligible
 try:
     from pipeline import pdf_pipeline as team_pipeline
@@ -682,13 +682,13 @@ EMERGENCY_WORDS = ["다쳤", "부상", "쓰러", "의식", "출혈", "피가", "
 EMERGENCY_LINE = "⚠️ 사람이 다쳤거나 위험이 계속되면 즉시 119에 신고하고 현장 비상절차를 따르세요."
 
 def is_emergency(q: str) -> bool:
-    return any(w in q for w in EMERGENCY_WORDS)
+    return not is_information_only(q) and any(w in q for w in EMERGENCY_WORDS)
 
 INCIDENT_WORDS = EMERGENCY_WORDS + ["사고", "쏟", "엎질", "깨졌", "깨진", "노출", "흡입", "튀었", "터졌", "냄새"]
 
 def is_incident(q: str) -> bool:
     """사고 상황 질문인지 (단순 용어·기준 질문에는 검색 계획을 쓰지 않음)"""
-    return any(w in q for w in INCIDENT_WORDS)
+    return not is_information_only(q) and any(w in q for w in INCIDENT_WORDS)
 
 # ✅ 물질명 오탈자 보정 (예: 영화수소 → 염화수소)
 #   조원 파이프라인의 물질 목록(material_catalog.json)에 있는 이름과 "자모 단위"로 비교한다
@@ -806,7 +806,7 @@ def build_prompt(context: str, question: str, include_markers: bool = True) -> s
               else "답변 본문만 출력하세요.")
     return (
         "당신은 산업 현장 안전사고 대응 도우미입니다. 아래 [검색 내용]은 매뉴얼과 출처가 표시된 공식 참고자료입니다.\n" +
-        ANSWER_POLICY + "\n규칙:\n"
+        ANSWER_POLICY + ("\n이 질문은 정보 조회·비교다. 요청한 비교와 출처만 답하고 사고 대응·연락처·현장 확인 질문은 추가하지 않는다.\n" if is_information_only(question) else "") + "\n규칙:\n"
         "- [검색 내용]에 근거해서 한국어로 친절하고 구체적으로 답하세요.\n"
         "- 질문과 관련된 내용을 정리하고 그래프 경로에 표시된 절차 분기·기관·업무 관계를 함께 설명하세요.\n"
         "- 그래프의 related_work는 관련 업무이고, 조건이 다른 절차 경로는 구분해서 설명하세요. 검색 주제는 실제 발생 사실과 구분하세요.\n"
@@ -901,7 +901,7 @@ async def prepare_rag(rag_request: RAGRequest, search_question: str | None = Non
     if context:
         context += "\n[근거 확보 현황]\n" + json.dumps(workflow, ensure_ascii=False)
         context += "\n[필수 답변 구성]\n" + generation_requirements(
-            selected, graph.get("matched_materials", []), citation_style="number")
+            selected, graph.get("matched_materials", []), citation_style="number", question=q)
     return {
         "q": q,
         "emergency": emergency,
@@ -923,7 +923,7 @@ def finish_rag(state: dict, raw: str) -> dict:
         "prompt": q,
         "needs_review": emergency,
         "search_queries": [query for _, query in queries[1:]],
-        "clarifying_questions": (plan or {}).get("clarifying_questions", []),
+        "clarifying_questions": [] if is_information_only(q) else (plan or {}).get("clarifying_questions", []),
         "graph_retrieval": state.get("graph_retrieval", {}),
     }
     if not final or final.upper().startswith("N/A"):
@@ -932,7 +932,7 @@ def finish_rag(state: dict, raw: str) -> dict:
 
     final, completion_source_ids = ensure_contact_details(
         final, [{**d.metadata, "text": d.page_content} for d in docs], citation_style="number",
-        enabled=bool(state.get("graph_retrieval", {}).get("matched_materials")),
+        enabled=not is_information_only(q) and bool(state.get("graph_retrieval", {}).get("matched_materials")),
         materials=state.get("graph_retrieval", {}).get("matched_materials", []))
     base["graph_retrieval"]["completion_source_ids"] = completion_source_ids
     cited = [int(n) for n in re.findall(r"문서\s*(\d+)", final)]

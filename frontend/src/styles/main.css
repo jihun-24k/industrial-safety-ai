@@ -98,3 +98,20 @@
  .response-contacts{display:none}
 }
 @media(max-width:1100px){.response-contacts{width:100%}}
+
+/* Keep user questions and identity labels as readable as assistant answers. */
+.user-message{font-size:19px;line-height:1.9;padding:18px 22px}
+.message-author{font-size:18px;gap:12px;margin-bottom:14px}
+.message-author strong{font-size:18px;font-weight:700}
+.message-author .avatar{width:40px;height:40px;font-size:18px}
+.message-author>img{width:36px;height:36px}
+.history button{font-size:17px;line-height:1.6;padding:14px 12px}
+.history-label{font-size:14px}
+.account strong{font-size:17px}
+.account small{font-size:13px}
+@media(max-width:680px){
+ .user-message{font-size:18px;padding:16px 18px}
+ .message-author,.message-author strong{font-size:17px}
+ .message-author .avatar{width:36px;height:36px;font-size:17px}
+ .history button{font-size:16px}
+}

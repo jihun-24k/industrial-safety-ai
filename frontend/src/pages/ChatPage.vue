@@ -7,7 +7,7 @@ import ChatComposer from '../components/ChatComposer.vue';
 import ChatHeader from '../components/ChatHeader.vue';
 import ConversationSidebar from '../components/ConversationSidebar.vue';
 import ContactCards from '../components/ContactCards.vue';
-import { answerContacts } from '../utils/answerPresentation';
+import { answerContacts, isInformationOnly, questionForReply } from '../utils/answerPresentation';
 import MessageList from '../components/MessageList.vue';
 import { createLiveVoiceInput } from '../utils/liveVoiceInput';
 import { captureMicrophone } from '../utils/microphone';
@@ -46,7 +46,7 @@ const messages = computed(() => conversation.value?.messages || []);
 const latestReply = computed(() => [...messages.value].reverse().find(message => message.role === 'assistant'));
 const railContacts = computed(() => {
   const reply = latestReply.value;
-  return !reply || reply.pending || reply.streaming ? [] : (reply.contacts || answerContacts(reply.text));
+  return !reply || reply.pending || reply.streaming || isInformationOnly(questionForReply(messages.value, reply)) ? [] : (reply.contacts || answerContacts(reply.text));
 });
 const controlsDisabled = computed(() => busy.value || uploading.value || !!ttsLoading.value || voiceState.value !== 'idle');
 
