@@ -1,9 +1,10 @@
 <script setup>
 import { nextTick, ref } from 'vue';
+import AnswerCards from './AnswerCards.vue';
 import ContactCards from './ContactCards.vue';
 import { translationFor, speechLanguages } from '../utils/translation';
 import SafetyAssistant from './SafetyAssistant.vue';
-import { answerSections, displayAnswerSections, answerContacts, answerFragments, compactSources, contactCondensedText, isInformationOnly, questionForReply } from '../utils/answerPresentation';
+import { answerSections, displayAnswerSections, answerContacts, compactSources, contactCondensedText, isInformationOnly, questionForReply } from '../utils/answerPresentation';
 
 const props = defineProps({
   messages: { type: Array, default: () => [] },
@@ -21,6 +22,9 @@ const container = ref(null);
 const descriptions = ['누출과 확산 상황 확인', '화재 관련 근거 확인', '피부, 눈, 흡입 상황 확인'];
 const informational = message => isInformationOnly(questionForReply(props.messages, message));
 const contactsFor = message => informational(message) ? [] : (message.contacts || answerContacts(message.text));
+const translated = message => props.speechLanguage === 'ko' || message.streaming ? null : translationFor(message, props.speechLanguage);
+const translatedSections = message => answerSections(translated(message)?.translated_text || '');
+const languageLabel = () => speechLanguages.find(item => item.code === props.speechLanguage)?.label;
 const sectionsFor = message => message.streaming ? answerSections(message.text) : displayAnswerSections(contactCondensedText(message.text, contactsFor(message)));
 async function scrollToBottom() {
   await nextTick();
@@ -76,19 +80,20 @@ defineExpose({ scrollToBottom });
               <h2>상황 확인</h2>
               <ul><li v-for="question in message.clarifyingQuestions" :key="question">{{ question }}</li></ul>
             </section>
-            <section v-for="(section, index) in sectionsFor(message)" :key="index" class="answer-section glass-card" :class="{ 'answer-section--immediate': /즉시|응급/.test(section.heading) }">
-              <div v-if="section.heading" class="answer-card-heading"><span class="answer-step" aria-hidden="true">{{ section.number || String(index + 1).padStart(2, '0') }}</span><h2>{{ section.heading }}</h2></div>
-              <div class="message-text"><template v-for="(fragment, fragmentIndex) in answerFragments(section.text)" :key="fragmentIndex"><span v-if="fragment.citation" class="citation-badge" :aria-label="`출처 ${fragment.text}`">{{ fragment.text }}</span><template v-else>{{ fragment.text }}</template></template><span v-if="message.streaming && index === sectionsFor(message).length - 1" class="dots">···</span></div>
-            </section>
+            <template v-if="translated(message)">
+              <p class="translation-label" role="status">{{ languageLabel() }} 번역</p>
+              <AnswerCards :sections="translatedSections(message)" :language="speechLanguage" />
+              <details class="original-answer glass-card">
+                <summary>한국어 원문 보기</summary>
+                <div class="original-answer-cards"><AnswerCards :sections="sectionsFor(message)" /></div>
+              </details>
+            </template>
+            <AnswerCards v-else :sections="sectionsFor(message)" :streaming="message.streaming" />
             <details v-if="message.sources?.length" class="sources-card glass-card">
               <summary>근거 문서 확인 <span>{{ message.sources.length }}개</span></summary>
               <ul><li v-for="source in message.sources" :key="source">{{ compactSources(source) }}</li></ul>
             </details>
             <p v-else-if="!message.streaming" class="source-note">{{ message.source }}</p>
-            <section v-if="speechLanguage !== 'ko' && translationFor(message, speechLanguage)" class="glass-card translation-card" :lang="speechLanguage">
-              <h2>{{ speechLanguages.find(item => item.code === speechLanguage)?.label }} 번역</h2>
-              <div class="message-text">{{ translationFor(message, speechLanguage).translated_text }}</div>
-            </section>
             <button v-if="!message.streaming && message.text" class="listen-button" :disabled="!!ttsLoading" :aria-pressed="speakingId === message.id" @click="$emit('speak', message)">
               {{ ttsLoading === message.id ? '◌ 음성 준비 중…' : speakingId === message.id ? '■ 재생 중지' : speechLanguage === 'ko' ? '◖ 답변 듣기' : '◖ 번역하고 듣기' }}
             </button>

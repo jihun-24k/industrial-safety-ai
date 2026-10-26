@@ -26,7 +26,9 @@ def get_llm_response(user_input: str, target_language: str = "en") -> str:
                 "Preserve meaning, warnings, negation, prohibitions, and ordered steps. "
                 "Preserve all numbers, units, chemical formulas, chemical names, phone numbers, "
                 "URLs, and document references exactly; a translated chemical name may follow in parentheses. "
-                "Keep paragraph and heading structure. If already in the target language, return unchanged. "
+                "Keep paragraph and heading structure. Preserve Markdown heading markers (#) and "
+                "numbered-list prefixes; translate the heading text. Keep citation labels and brackets verbatim. "
+                "If already in the target language, return unchanged. "
                 "Return only the translation."
             )},
             {"role": "user", "content": user_input.strip()},
