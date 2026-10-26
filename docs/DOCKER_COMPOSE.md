@@ -67,7 +67,38 @@ VOICE_PORT=18008
 DB_PORT=15331
 ```
 
-새 스택의 프로젝트 이름은 `industrial-safety-stack`이며 기존 단독 DB의 컨테이너·볼륨을 자동 재사용하거나 업그레이드하지 않습니다. 기본적으로 새 DB이므로 기존 계정은 자동으로 나타나지 않으며 새로 가입해야 합니다. 기존 DB 데이터가 필요하면 별도 백업·복원 후 전환하세요. 기존 `docker-compose.mariadb.yml`과 음성 단독 Compose도 유지합니다.
+프로젝트 이름은 `industrial-safety-stack`입니다. 과거 별도 구성에서 생성한 DB 컨테이너·볼륨은 자동으로 재사용하거나 업그레이드하지 않습니다. 과거 DB의 데이터가 필요하면 별도 백업·복원 후 전환하세요. 기존 볼륨은 이번 구성 정리로 삭제되지 않습니다. DB·음성 전용 Compose 파일은 제거했으며, 일부 서비스만 실행할 때도 루트 `compose.yaml`을 사용합니다.
+
+## 필요한 서비스만 실행
+
+로컬 개발과 전체 컨테이너 실행에 같은 프로젝트·환경변수·데이터 볼륨을 사용합니다.
+
+```bash
+# DB만 실행
+docker compose up -d mariadb
+
+# 인증·RAG·프론트엔드는 로컬에서 실행하고, DB·음성만 컨테이너 사용
+docker compose up -d --build mariadb voice
+
+# 선택한 서비스만 중지. 볼륨은 유지
+docker compose stop mariadb voice
+```
+
+전체 구성을 켜 둔 상태에서 로컬 서버로 전환하려면 `docker compose stop auth rag frontend`로 해당 컨테이너를 먼저 중지합니다. 호스트에서 실행하는 인증·RAG 서버는 기본 주소 `127.0.0.1:53301`, DB 사용자 `safety`, `.env`의 `DB_PASSWORD`로 연결합니다. 호스트 포트를 바꿨다면 로컬 서버의 DB 연결 주소도 맞춰야 합니다. `DB_ROOT_PASSWORD`는 DB 관리용이며 애플리케이션 로그인에 사용하지 않습니다.
+
+## Docker 파일 구성
+
+| 파일 | 용도 |
+| --- | --- |
+| `compose.yaml` | 전체 서비스와 선택 실행, 네트워크·볼륨·상태 확인 정의 |
+| `frontend/Dockerfile` | Vue/Vite 개발 서버 이미지 |
+| `workplace/Dockerfile` | Java 인증 서버 빌드·실행 이미지 |
+| `rag-code-template_ext/Dockerfile` | 루트 빌드 컨텍스트에서 RAG·pipeline·원본 자료 구성 |
+| `voice-ai_code/Dockerfile` | Whisper·ffmpeg·TTS 실행 이미지 |
+| 루트 및 서비스별 `.dockerignore` | 각 빌드 컨텍스트에서 비밀 설정·캐시·생성 파일 제외 |
+| `voice-ai_code/requirements-docker.txt` | 음성 컨테이너에 필요한 Python 의존성 |
+
+네 Dockerfile은 루트 Compose에서 실제로 참조하므로 유지합니다. `.dockerignore`도 빌드 컨텍스트가 달라 각각 필요합니다.
 
 ## 데이터와 개발 반영
 
@@ -80,6 +111,6 @@ DB_PORT=15331
 
 Vue `frontend/src/` 수정은 개발 서버에 바로 반영됩니다. 패키지·Vite 설정·백엔드 소스가 바뀌면 `docker compose up -d --build`로 재빌드합니다. 이 구성은 로컬 개발용이며 Vue는 Vite 개발 서버를 사용합니다.
 
-원래 호스트에서 실행하는 방식도 유지됩니다. Vite 프록시 기본값은 localhost이고 Compose에서만 서비스 이름을 전달합니다. Java는 `DB_URL`, `DB_USER` 환경변수가 없으면 기존 localhost DB 주소와 root 계정을 사용합니다. 음성 서버는 `JWT_SECRET` 환경변수 또는 자신의 `.env`가 필요합니다.
+원래 호스트에서 실행하는 방식도 유지됩니다. Vite 프록시 기본값은 localhost이고 Compose에서만 서비스 이름을 전달합니다. Java는 기본 root 계정 대신 `DB_URL`, `DB_USER=safety`, `DB_PASSWORD`를 명시해 Compose DB에 연결합니다. 음성 서버는 `JWT_SECRET` 환경변수 또는 자신의 `.env`가 필요합니다.
 
 상태 확인은 서비스 시작·HTTP 응답 기준입니다. 실제 OpenAI 키 유효성, 검색 인덱스 내용, 답변 품질·음성 생성 품질을 보증하지 않습니다. RAG·TTS 호출 시에는 기존과 같이 API 비용이 발생합니다.
