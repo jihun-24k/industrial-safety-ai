@@ -55,6 +55,9 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in the root .env}
       DB_NAME: sql_db
       AUTH_CHECK_URL: http://auth:8080/api/auth/check
+      OPS_ADMINS: ${OPS_ADMINS:-}
+      VERIFIED_QA_MAX_DISTANCE: ${VERIFIED_QA_MAX_DISTANCE:-0.18}
+      OPS_TIMEZONE: ${OPS_TIMEZONE:-Asia/Seoul}
       PYTHONPATH: /app
     ports:
       - "127.0.0.1:${RAG_PORT:-8001}:8001"

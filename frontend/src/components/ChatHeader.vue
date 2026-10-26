@@ -9,7 +9,7 @@ const props = defineProps({
   modeDisabled: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['open-menu', 'new-chat', 'update:language', 'update:streaming']);
+const emit = defineEmits(['open-menu', 'new-chat', 'update:language', 'update:streaming', 'open-dashboard']);
 const languageMenu = ref(null);
 const languageTrigger = ref(null);
 const selectedLanguage = computed(() => speechLanguages.find(item => item.code === props.language)?.label || '한국어');
@@ -43,6 +43,7 @@ onBeforeUnmount(() => {
     </div>
     <div class="header-actions">
       <button class="history-toggle" @click="$emit('open-menu')">상담 기록</button>
+      <button v-if="!demo" type="button" class="ops-toggle" :disabled="modeDisabled" @click="$emit('open-dashboard')">운영 현황</button>
       <details ref="languageMenu" class="speech-language" @toggle="(modeDisabled || demo) && languageMenu && (languageMenu.open = false)">
         <summary ref="languageTrigger" class="language-trigger" :aria-disabled="modeDisabled || demo" aria-label="답변 음성 언어 선택" @click="(modeDisabled || demo) && $event.preventDefault()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c5 5 5 13 0 18-5-5-5-13 0-18Z"/></svg>

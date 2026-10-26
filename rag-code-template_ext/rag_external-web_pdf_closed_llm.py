@@ -73,6 +73,15 @@ from pipeline.query_translation import normalize_query, QueryTranslationError
 from pipeline.retrieval_context import path_text, select_context_rows
 from pipeline.safety_workflow import assemble as assemble_safety, ANSWER_POLICY, generation_requirements, ensure_contact_details, is_information_only
 from pipeline.knowledge_graph import evidence_eligible
+import time
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+import ops_dashboard as ops   # 운영 로그 · 지표 · 검증 Q&A
+
+# ✅ 운영 대시보드 설정 (.env로 변경 가능)
+OPS_ADMINS = {name.strip() for name in os.getenv("OPS_ADMINS", "").split(",") if name.strip()}  # 비어 있으면 로그인한 모두 허용(개발용)
+VERIFIED_QA_MAX_DISTANCE = float(os.getenv("VERIFIED_QA_MAX_DISTANCE", "0.18"))  # 작을수록 엄격 (squared L2)
+VERIFIED_QA_TOP_K = 2
 try:
     from pipeline import pdf_pipeline as team_pipeline
     TEAM_CFG = team_pipeline.config_at(PROJECT_ROOT / "pipeline" / "config.json")
@@ -173,6 +182,11 @@ async def create_chat_tables():
               ADD COLUMN IF NOT EXISTS normalized_text LONGTEXT NULL,
               ADD COLUMN IF NOT EXISTS source_language VARCHAR(3) NULL
         """))
+        await ops.create_tables(connection)   # 운영 로그 · 검증 Q&A 테이블
+    try:
+        await refresh_verified_index()
+    except Exception as exc:
+        print(f"⚠️ 검증 Q&A 인덱스를 만들지 못했습니다(서비스는 계속): {exc}")
 
 # ✅ 전역 벡터 저장소
 VECTORSTORE_WEB = None
@@ -379,6 +393,7 @@ class AnswerResponse(BaseModel):
     graph_retrieval: dict = Field(default_factory=dict)
     conversation_id: str
     title: str
+    log_id: Optional[int] = None   # 운영 로그 ID (답변 평가용)
 
 
 def _json_value(value, default):
@@ -458,6 +473,14 @@ async def get_conversation_messages(conversation_id: str, request: Request):
             item["needs_review"] = bool(item["needs_review"])
             item["handoff"] = bool(item["handoff"])
             messages.append(item)
+        try:
+            logs = await ops.feedback_for_messages(
+                connection, [m["id"] for m in messages if m["role"] == "assistant"])
+        except Exception as exc:
+            print(f"⚠️ 답변 평가 정보를 불러오지 못했습니다: {exc}")
+            logs = {}
+        for item in messages:
+            item.update(logs.get(item["id"], {}))
         return {"conversation": dict(conversation), "messages": messages}
 
 
@@ -667,7 +690,7 @@ async def save_turn(username: str, chat: dict, result: dict):
         """), {"conversation_id": chat["conversation_id"], "content": result["prompt"],
                "normalized_text": result.get("normalized_prompt", result["prompt"]),
                "source_language": result.get("source_language", "und")})
-        await connection.execute(text("""
+        assistant_insert = await connection.execute(text("""
             INSERT INTO chat_messages
               (conversation_id, role, text, sources, needs_review, handoff, clarifying_questions)
             VALUES
@@ -682,6 +705,7 @@ async def save_turn(username: str, chat: dict, result: dict):
             UPDATE chat_conversations SET updated_at = CURRENT_TIMESTAMP
             WHERE id = :conversation_id AND owner_username = :username
         """), {"conversation_id": chat["conversation_id"], "username": username})
+    return getattr(assistant_insert, "lastrowid", None)
 
 
 async def finalize_turn(request: Request, username: str, chat: dict, state: dict, raw: str) -> dict:
@@ -694,8 +718,26 @@ async def finalize_turn(request: Request, username: str, chat: dict, state: dict
     result.update(conversation_id=chat["conversation_id"], title=chat["title"])
     if await request.is_disconnected():
         raise asyncio.CancelledError
-    await save_turn(username, chat, result)
+    assistant_message_id = await save_turn(username, chat, result)
+    result["log_id"] = await record_query_log(username, chat, state, result, assistant_message_id)
     return result
+
+
+async def record_query_log(username: str, chat: dict, state: dict, result: dict, assistant_message_id):
+    """운영 로그 기록. 실패해도 답변은 그대로 돌려준다(로그는 보조 기능)."""
+    started = chat.get("started_at")
+    latency_ms = int((time.monotonic() - started) * 1000) if started else None
+    try:
+        record = ops.build_log_record(
+            username=username, chat=chat, state=state, result=result, latency_ms=latency_ms,
+            is_incident=is_incident(state.get("q", "")), assistant_message_id=assistant_message_id)
+        async with engine.begin() as connection:
+            log_id = await ops.insert_log(connection, record)
+        print(f"[운영 로그] #{log_id} {latency_ms}ms handoff={record['handoff']} 검증QA={state.get('verified_qa_ids', [])}")
+        return log_id
+    except Exception as exc:
+        print(f"⚠️ 운영 로그 기록 실패(답변은 정상 반환): {exc}")
+        return None
 
 # ✅ RAG 기반 질의 응답 처리
 from fastapi import Body
@@ -995,15 +1037,25 @@ async def prepare_rag(rag_request: RAGRequest, search_question: str | None = Non
         assemble_safety, vector_rows, graph, max_docs=MAX_CONTEXT_DOCS,
         web_enabled=use_team and TEAM_CFG.get('official_web', {}).get('enabled', True))
     docs = [Document(page_content=r['text'], metadata={k: v for k, v in r.items() if k != 'text'}) for r in selected]
+    verified_docs = await asyncio.to_thread(search_verified_qa, q)
+    if verified_docs:
+        # 운영자가 확인한 과거 답변을 근거 "뒤쪽"에 붙인다.
+        # (앞에 붙이면 generation_requirements가 매긴 (문서 N) 번호가 밀려 출처가 틀어진다)
+        docs = docs + verified_docs
     graph_metadata = {k: v for k, v in graph.items() if k != 'results'}
     graph_metadata['safety_workflow'] = workflow
     graph_metadata['context_paths'] = [
         {'chunk_id': r['chunk_id'], 'paths': r['graph_paths']} for r in selected if r.get('graph_paths')]
-    context = make_context(docs)
+    # 검증 Q&A는 뒤쪽에 붙으므로 글자 수 한도에 잘리지 않게 그만큼 한도를 늘린다
+    context = make_context(docs, limit_chars=24000 + 3000 * len(verified_docs))
     if context:
         context += "\n[근거 확보 현황]\n" + json.dumps(workflow, ensure_ascii=False)
         context += "\n[필수 답변 구성]\n" + generation_requirements(
             selected, graph.get("matched_materials", []), citation_style="number", question=q)
+    if verified_docs and context:
+        context += ("\n[검증 Q&A 안내] '검증 Q&A #번호' 문서는 운영자가 확인한 과거 질문·답변이다. "
+                    "현재 질문과 물질·사고 상황이 같을 때만 참고하고, 매뉴얼 근거가 있으면 매뉴얼 문서를 우선 인용한다. "
+                    "상황이 다르면 사용하지 않는다.")
     if unknown_material:
         context += "\n[물질 확인 상태] 물질 미확인. 검색 문서나 이전 답변의 물질명을 사고 물질로 추정하지 않는다. 일반 사고 대응 근거만 사용해 사용자가 요청한 사람 보호 → 현장 대응 → 보고 순서로 설명한다. 개별 물질 반응·중화·소화법을 확정하지 않는다. 물질명·제품 라벨/SDS 확인을 요청하되 확인 전에도 근거 있는 일반 대응을 안내한다."
         plan = {**(plan or {}), 'clarifying_questions': ['누출된 화학약품의 이름이나 제품 라벨/SDS를 확인할 수 있나요?']}
@@ -1018,6 +1070,7 @@ async def prepare_rag(rag_request: RAGRequest, search_question: str | None = Non
         "graph_retrieval": graph_metadata,
         "typo_fixes": typo_fixes,
         "typo_questions": typo_questions,
+        "verified_qa_ids": [d.metadata["verified_qa_id"] for d in verified_docs],
     }
 
 
@@ -1070,10 +1123,12 @@ def sse_event(event: str, data: dict) -> str:
 
 @app.post("/rag-query", response_model=AnswerResponse, summary="Closed Source LLM + 벡터 DB 질의", tags=["질의 응답"])
 async def rag_query(request: Request, rag_request: RAGRequest = Body(...)):
+    started_at = time.monotonic()
     try:
         username = await authenticated_username(request)
         await authorize_conversation(username, rag_request)
         processing_request, chat = await prepare_query(username, rag_request)
+        chat.update(started_at=started_at, streaming=False)
         state = await prepare_rag(processing_request, chat["search_question"])
         if not state["context"].strip():
             raw = "N/A"
@@ -1097,10 +1152,13 @@ async def rag_query_stream(request: Request, rag_request: RAGRequest = Body(...)
     username = await authenticated_username(request)
     await authorize_conversation(username, rag_request)
 
+    started_at = time.monotonic()
+
     async def generate():
         try:
             yield sse_event("status", {"phase": "translating", "message": "질문을 한국어로 해석하고 있어요…"})
             processing_request, chat = await prepare_query(username, rag_request)
+            chat.update(started_at=started_at, streaming=True)
             translation = chat["input_translation"]
             yield sse_event("normalized", {"normalized_prompt": translation.normalized_prompt,
                                            "source_language": translation.source_language})
@@ -1144,6 +1202,133 @@ async def rag_query_stream(request: Request, rag_request: RAGRequest = Body(...)
             "X-Accel-Buffering": "no",
         },
     )
+
+
+# ✅ 검증 Q&A: 운영자가 확인한 답변을 비슷한 질문의 근거로 다시 쓴다
+_VERIFIED = {"store": None, "rows": {}}
+
+
+def _verified_embedder():
+    return TEAM_EMBEDDER if (USE_TEAM_INDEX and TEAM_EMBEDDER) else OpenAIEmbeddings()
+
+
+async def refresh_verified_index():
+    """verified_qa(활성) 질문으로 작은 FAISS 인덱스를 다시 만든다. 등록·삭제할 때마다 호출."""
+    async with engine.connect() as connection:
+        rows = await ops.list_verified(connection)
+    if not rows:
+        _VERIFIED.update(store=None, rows={})
+        print("ℹ️ 검증 Q&A 없음")
+        return
+    docs = [Document(page_content=row["question"], metadata={"verified_qa_id": int(row["id"])}) for row in rows]
+    store = await asyncio.to_thread(FAISS.from_documents, docs, _verified_embedder())
+    _VERIFIED.update(store=store, rows={int(row["id"]): row for row in rows})
+    print(f"✅ 검증 Q&A {len(rows)}개 로드")
+
+
+def search_verified_qa(question: str) -> list:
+    """질문과 아주 비슷한(거리 ≤ VERIFIED_QA_MAX_DISTANCE) 검증 Q&A만 근거 문서로 돌려준다."""
+    store = _VERIFIED["store"]
+    if store is None or not question.strip():
+        return []
+    try:
+        found = store.similarity_search_with_score(question, k=min(VERIFIED_QA_TOP_K, len(_VERIFIED["rows"])))
+    except Exception as exc:
+        print(f"⚠️ 검증 Q&A 검색 실패: {exc}")
+        return []
+    docs = []
+    for doc, score in found:
+        row = _VERIFIED["rows"].get(doc.metadata.get("verified_qa_id"))
+        if row is None or score > VERIFIED_QA_MAX_DISTANCE:
+            continue
+        print(f"[검증 Q&A] #{row['id']} 거리={score:.4f} 질문={row['question'][:60]!r}")
+        sources = ", ".join(row.get("sources") or []) or "없음"
+        docs.append(Document(
+            page_content=f"과거 질문: {row['question']}\n검증된 답변: {row['answer'][:2400]}\n원래 근거: {sources}",
+            metadata={"filename": f"검증 Q&A #{row['id']}", "doc_type": "verified_qa",
+                      "chunk_id": f"verified-qa-{row['id']}", "verified_qa_id": int(row["id"]),
+                      "verified_distance": float(score)}))
+    return docs
+
+
+def is_ops_admin(username: str) -> bool:
+    return not OPS_ADMINS or username in OPS_ADMINS
+
+
+async def require_ops_admin(request: Request) -> str:
+    username = await authenticated_username(request)
+    if not is_ops_admin(username):
+        raise HTTPException(status_code=403, detail="운영 대시보드는 관리자만 볼 수 있습니다.")
+    return username
+
+
+class FeedbackRequest(BaseModel):
+    rating: Literal[1, -1] = Field(..., description="1: 도움됨, -1: 부족함")
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
+class VerifiedQARequest(BaseModel):
+    log_id: int = Field(..., ge=1)
+    question: str = Field(..., min_length=2, max_length=2000, description="검색에 쓸 대표 질문")
+    answer: str = Field(..., min_length=2, max_length=8000, description="운영자가 확인·수정한 답변")
+
+
+@app.post("/rag-logs/{log_id}/feedback", tags=["운영"])
+async def rate_answer(log_id: int, request: Request, feedback: FeedbackRequest = Body(...)):
+    username = await authenticated_username(request)
+    async with engine.begin() as connection:
+        updated = await ops.set_feedback(connection, log_id, username, feedback.rating, feedback.note)
+    if not updated:
+        raise HTTPException(status_code=404, detail="평가할 답변을 찾을 수 없습니다.")
+    return {"ok": True, "log_id": log_id, "feedback": feedback.rating}
+
+
+@app.get("/ops/metrics", tags=["운영"])
+async def ops_metrics(request: Request, days: int = Query(7, ge=1, le=90)):
+    """대시보드 지표: 누적 현황, 일별 추이, handoff·긴급, 응답 시간, 만족도, 최근 맥락."""
+    username = await require_ops_admin(request)
+    now = datetime.now(UTC)
+    async with engine.connect() as connection:
+        rows = await ops.fetch_window(connection, ops.window_start(days, now))
+        total = await ops.count_all_logs(connection)
+        verified = await ops.list_verified(connection)
+    summary = ops.summarize(rows, all_time_total=total, verified=verified, days=days, now=now)
+    summary["viewer"] = username
+    summary["config"] = {"search_plan": USE_SEARCH_PLAN, "team_index": USE_TEAM_INDEX,
+                         "verified_qa_max_distance": VERIFIED_QA_MAX_DISTANCE}
+    return summary
+
+
+@app.get("/ops/verified-qa", tags=["운영"])
+async def list_verified_qa(request: Request):
+    await require_ops_admin(request)
+    async with engine.connect() as connection:
+        return await ops.list_verified(connection)
+
+
+@app.post("/ops/verified-qa", tags=["운영"])
+async def create_verified_qa(request: Request, body: VerifiedQARequest = Body(...)):
+    """로그의 답변을 운영자가 확인(필요하면 수정)해서 검증 Q&A로 등록한다."""
+    username = await require_ops_admin(request)
+    async with engine.begin() as connection:
+        log = await ops.fetch_log(connection, body.log_id)
+        if not log:
+            raise HTTPException(status_code=404, detail="원본 로그를 찾을 수 없습니다.")
+        qa_id = await ops.create_verified(
+            connection, question=body.question.strip(), answer=body.answer.strip(),
+            sources=log.get("sources", []), source_log_id=body.log_id, created_by=username)
+    await refresh_verified_index()
+    return {"ok": True, "id": qa_id}
+
+
+@app.delete("/ops/verified-qa/{qa_id}", tags=["운영"])
+async def retire_verified_qa(qa_id: int, request: Request):
+    await require_ops_admin(request)
+    async with engine.begin() as connection:
+        if not await ops.retire_verified(connection, qa_id):
+            raise HTTPException(status_code=404, detail="검증 Q&A를 찾을 수 없습니다.")
+    await refresh_verified_index()
+    return {"ok": True, "id": qa_id}
 
 
 # 실행 명령어 예시:

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 import sys
 import unittest
 from types import SimpleNamespace
@@ -115,6 +116,8 @@ class QueryFlowTests(unittest.IsolatedAsyncioTestCase):
         async def save(*args):
             saved.append(args[-1])
         async def connected(): return False
+        async def log_turn(*args):
+            return None
         scope = {
             'app': FakeApp(), 'Request': object, 'RAGRequest': FakeRequestModel,
             'Body': lambda *args, **kwargs: None, 'AnswerResponse': lambda **kwargs: kwargs,
@@ -124,6 +127,7 @@ class QueryFlowTests(unittest.IsolatedAsyncioTestCase):
             'finish_rag': lambda state, raw: {'prompt': state['q'], 'answer': '안전 안내'},
             'save_turn': save, 'asyncio': asyncio, 'json': json,
             'StreamingResponse': lambda body, **kwargs: body,
+            'time': time, 'record_query_log': log_turn,
         }
         query, stream, *_ = load_functions('rag_query', 'rag_query_stream', 'translate_input',
                                          'prepare_query', 'finalize_turn', 'sse_event', namespace=scope)

@@ -18,7 +18,7 @@ const props = defineProps({
   demo: { type: Boolean, default: false },
   disabled: { type: Boolean, default: false },
 });
-defineEmits(['send-example', 'speak']);
+defineEmits(['send-example', 'speak', 'feedback']);
 const container = ref(null);
 const descriptions = ['누출과 확산 상황 확인', '화재 관련 근거 확인', '피부, 눈, 흡입 상황 확인'];
 const informational = message => isInformationOnly(questionForReply(props.messages, message));
@@ -98,6 +98,11 @@ defineExpose({ scrollToBottom });
             <button v-if="!message.streaming && message.text" class="listen-button" :disabled="!!ttsLoading" :aria-pressed="speakingId === message.id" @click="$emit('speak', message)">
               {{ ttsLoading === message.id ? '◌ 음성 준비 중…' : speakingId === message.id ? '■ 재생 중지' : speechLanguage === 'ko' ? '◖ 답변 듣기' : '◖ 번역하고 듣기' }}
             </button>
+            <div v-if="message.logId && !message.streaming && !demo" class="feedback-row" role="group" aria-label="답변 평가">
+              <span>이 답변이 도움이 됐나요?</span>
+              <button type="button" :aria-pressed="message.feedback === 1" :disabled="message.feedbackSaving" @click="$emit('feedback', message, 1)">▲ 도움됐어요</button>
+              <button type="button" :aria-pressed="message.feedback === -1" :disabled="message.feedbackSaving" @click="$emit('feedback', message, -1)">▼ 아쉬워요</button>
+            </div>
           </div>
           <aside v-if="!message.streaming && contactsFor(message).length" class="response-contacts" :aria-label="contactUi(speechLanguage).heading">
             <ContactCards :contacts="localizedContacts(message, speechLanguage, contactsFor(message))" :demo="demo" :language="speechLanguage" />

@@ -13,6 +13,8 @@ export function mapStoredMessage(message) {
     needsReview: message.needs_review === true,
     handoff,
     clarifyingQuestions: Array.isArray(message.clarifying_questions) ? message.clarifying_questions : [],
+    logId: Number.isInteger(message.log_id) ? message.log_id : null,
+    feedback: message.feedback === 1 || message.feedback === -1 ? message.feedback : null,
     source: handoff ? '근거 없음 · 안전관리자 확인 필요'
       : (sources.length ? `출처: ${sources.join(', ')}` : '문서 자료 기반'),
     createdAt: message.created_at,
