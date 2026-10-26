@@ -4,6 +4,7 @@ import json
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from pipeline.query_translation import normalize_query
 
 
 SOURCE_PATH = Path(__file__).parents[1] / "rag-code-template_ext" / "rag_external-web_pdf_closed_llm.py"
@@ -15,7 +16,7 @@ def load_functions(*names, namespace=None):
     selected = [node for node in TREE.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
                 and node.name in names]
     module = ast.Module(body=selected, type_ignores=[])
-    scope = dict(namespace or {})
+    scope = {"translate_input": normalize_query, **(namespace or {})}
     exec(compile(module, str(SOURCE_PATH), "exec"), scope)
     return [scope[name] for name in names]
 

@@ -212,7 +212,7 @@ async function send(text = '') {
         source: '문서 자료 기반',
         pending: true,
         streaming: false,
-        status: '관련 자료를 찾고 있어요…',
+        status: '질문을 한국어로 해석하고 있어요…',
       };
       chat.messages.push(placeholder);
       // Vue가 감시하는 proxy를 수정해야 토큰마다 화면이 갱신된다.
@@ -225,6 +225,13 @@ async function send(text = '') {
             onStatus: ({ message }) => {
               if (assistantMessage.pending && message) assistantMessage.status = message;
               scroll();
+            },
+            onNormalized: data => {
+              const message = chat.messages.find(item => item.id === userMessage.id);
+              if (message) {
+                message.normalizedText = data.normalized_prompt;
+                message.sourceLanguage = data.source_language;
+              }
             },
             onToken: token => {
               if (!token) return;
@@ -242,6 +249,11 @@ async function send(text = '') {
       if (typeof data.conversation_id !== 'string' || !data.conversation_id
           || typeof data.title !== 'string' || !data.title) {
         throw new Error('대화 정보를 받지 못했습니다. 다시 질문해 주세요.');
+      }
+      const originalMessage = chat.messages.find(item => item.id === userMessage.id);
+      if (originalMessage) {
+        originalMessage.normalizedText = data.normalized_prompt || '';
+        originalMessage.sourceLanguage = data.source_language || 'und';
       }
       assistantMessage.sources = Array.isArray(data.sources) ? data.sources : [];
       assistantMessage.needsReview = data.needs_review === true;

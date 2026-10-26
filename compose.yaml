@@ -47,6 +47,7 @@ services:
     restart: unless-stopped
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY in the root .env}
+      TRANSLATION_MODEL: ${TRANSLATION_MODEL:-gpt-4o-mini}
       NAVER_CLIENT_ID: ${NAVER_CLIENT_ID:-}
       NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET:-}
       DB_HOST: mariadb

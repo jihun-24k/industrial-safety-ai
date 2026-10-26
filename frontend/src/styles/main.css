@@ -139,3 +139,5 @@
 .chat-header .stream-toggle.active .toggle-track{background:linear-gradient(110deg,#8c77e0,#738ade)}
 .chat-header .stream-toggle.active .toggle-track i{transform:translateX(12px)}
 @media(max-width:640px){.chat-header .header-actions{gap:8px}.language-trigger{min-height:40px;padding:0 11px;gap:6px;font-size:13px}.language-trigger>svg:first-child{display:none}.chat-header .stream-toggle{min-height:40px;padding:0 10px}.stream-label{display:none}.language-options{width:184px}.chat-header{column-gap:6px}}
+
+.input-translation{margin-top:12px;font-size:.9em;white-space:normal}.input-translation summary{cursor:pointer}.input-translation div{margin-top:8px;white-space:pre-wrap;overflow-wrap:anywhere}

@@ -7,6 +7,8 @@ export function mapStoredMessage(message) {
     id: message.id,
     role: message.role,
     text: message.text,
+    normalizedText: message.normalized_text || '',
+    sourceLanguage: message.source_language || 'und',
     sources,
     needsReview: message.needs_review === true,
     handoff,
@@ -117,6 +119,7 @@ export const ragApi = {
     let result = null;
     await consumeEventStream(response.body, ({ event, data }) => {
       if (event === 'status') handlers.onStatus?.(data);
+      else if (event === 'normalized') handlers.onNormalized?.(data);
       else if (event === 'token') handlers.onToken?.(data.text || '');
       else if (event === 'done') result = data;
       else if (event === 'error') throw new Error(data.message || '답변 생성 중 오류가 발생했습니다.');
