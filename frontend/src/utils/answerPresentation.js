@@ -90,14 +90,18 @@ export function answerContacts(text = '') {
       const rawNumber = match[0];
       const local = /^[1-9]\d{2,3}-\d{4}$/.test(rawNumber);
       const prefix = line.slice(0, match.index).replace(/\*\*/g, '');
-      const label = prefix.split(/[。.!?]|(?:합니다|하세요|입니다)[.]?|[,;]/).at(-1).replace(/^[\s#*\-\d.)]+/, '').replace(/^담당\s*부서\s*[:：]\s*/, '').replace(/\s*[—–:：(（-]\s*$/, '').trim();
+      let label = prefix.split(/[。.!?]|(?:합니다|하세요|입니다)[.]?|[,;]/).at(-1).replace(/^[\s#*\-\d.)]+/, '').replace(/^담당\s*부서\s*[:：]\s*/, '').replace(/\s*[—–:：(（-]\s*$/, '').trim();
+      if (/^(?:전화번호|연락처)(?:는|은)?$/.test(label)) {
+        const previous = prefix.match(/(?:대학\s*본부[^.\n]{0,60}|연구실\s*안전관리[^.\n]{0,40}|원주\s*세브란스[^.\n]{0,40})/);
+        if (previous) label = previous[0];
+      }
       const department = /대학본부|연구실\s*안전관리|담당\s*부서|당직실|시설(?:팀|부|과)|폐시약|폐기물관리|소방\s*안전관리/.test(label) && !/병원|의료원|소방서|경찰서|지구대/.test(label);
       if (local && !department) continue;
       const normalized = (local ? '02' : '') + rawNumber.replace(/[ -]/g, '');
       if (seen.has(normalized)) continue;
       if (normalized.length === 3 && !/(전화|신고|연락|구조|소방|경찰|119|112)/.test(line.replace(match[0], ''))) continue;
       seen.add(normalized);
-      contacts.push({ number: local ? `02-${rawNumber}` : rawNumber, rawNumber, name: department ? cleanContactLabel(label) : undefined, dialNumber: normalized, areaCodeSource: local ? 'user_confirmed_department_rule' : undefined, context: line.replace(/^[\s#*-]+/, '').trim(), dialable: true });
+      contacts.push({ sources: sectionEvidence(line), availability: line.match(/\((주간\s*\/\s*야간|주간|야간)\)/)?.[1] || '', number: local ? `02-${rawNumber}` : rawNumber, rawNumber, name: department ? cleanContactLabel(label) : undefined, dialNumber: normalized, areaCodeSource: local ? 'user_confirmed_department_rule' : undefined, context: line.replace(/^[\s#*-]+/, '').trim(), dialable: true });
     }
   }
   return contacts;
@@ -117,4 +121,61 @@ export function isInformationOnly(question = '') {
 export function questionForReply(messages, reply) {
   const index = messages.indexOf(reply);
   return messages.slice(0, index).reverse().find(message => message.role === 'user')?.text || '';
+}
+
+// Hide only generated directory rows already represented by a contact card.
+// Keep procedural instructions and unresolved contacts in the original answer.
+export function contactCondensedText(text = '', contacts = []) {
+  const lines = text.split('\n');
+  let directory = false;
+  const result = [];
+  const movedSources = new Set();
+  for (const line of lines) {
+    if (/^\s*(?:#{1,4}\s*)?연락 안내\s*$/.test(line)) {
+      directory = true;
+      result.push(line);
+      continue;
+    }
+    if (directory && /^\s*#{1,4}\s/.test(line)) directory = false;
+    const directoryRow = directory && /^\s*[-•]\s*(?:병원|담당 부서):/.test(line) && /문서에 수록된 기관 연락처/.test(line);
+    const numbers = line.match(/(?<![\d-])(?:0\d{1,2}-)?\d{3,4}-\d{4}(?![\d-])/g) || [];
+    const represented = numbers.length && numbers.every(number => contacts.some(contact => (contact.rawNumber || contact.number) === number || contact.number === number));
+    if (!directoryRow || !represented) result.push(line);
+    else sectionEvidence(line).forEach(source => movedSources.add(source));
+  }
+  const body = result.join('\n').replace(/(?:^|\n)\s*(?:#{1,4}\s*)?연락 안내\s*(?=\n\s*#|$)/g, '').trim();
+  const sources = [...movedSources].filter(source => !body.includes(source));
+  return body + (sources.length ? `\n\n${sources.join(' ')}` : '');
+}
+
+// Combine dedicated contact sections; preserve procedural sections unchanged.
+export function displayAnswerSections(text = '') {
+  const sections = answerSections(text);
+  const result = [];
+  let combined;
+  const sources = new Set();
+  const summaries = new Set();
+  for (const section of sections) {
+    const heading = section.heading.replace(/\*\*/g, '').trim();
+    if (!/^(담당 부서|병원|담당 연락처|담당 부서[·/\s]*연락처|연락 안내)$/.test(heading)) {
+      result.push(section);
+      continue;
+    }
+    if (!combined) {
+      combined = { heading: '담당 연락처', number: section.number, text: '' };
+      result.push(combined);
+    }
+    sectionEvidence(section.text).forEach(source => sources.add(source));
+    const contacts = answerContacts(section.text);
+    // Preserve the original action and conditions, rather than replacing prose with labels.
+    let explanation = answerFragments(section.text).filter(part => !part.citation).map(part => part.text).join('');
+    if (contacts.length) {
+      explanation = explanation.replace(/전화번호는\s*(?:0\d{1,2}-)?\d{3,4}-\d{4}(?:이며|이고|입니다)[,，]?\s*/g, '');
+    }
+    explanation = explanation.replace(/\s+\./g, '.').replace(/\.{2,}/g, '.').replace(/[ \t]+/g, ' ').trim();
+    if (explanation) summaries.add(explanation);
+
+  }
+  if (combined) combined.text = [...summaries, ...sources].join('\n');
+  return result;
 }
