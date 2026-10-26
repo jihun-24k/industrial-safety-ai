@@ -3,10 +3,18 @@ import { onMounted, ref } from 'vue';
 import { authApi } from './api/authApi';
 import LoginPage from './pages/LoginPage.vue';
 import ChatPage from './pages/ChatPage.vue';
+import DashboardPage from './pages/DashboardPage.vue';
 
 const user = ref(null);
 const demo = ref(false);
 const checking = ref(true);
+const view = ref(window.location.hash === '#ops' ? 'ops' : 'chat');
+
+function showView(next) {
+  view.value = next;
+  const hash = next === 'ops' ? '#ops' : '';
+  if (window.location.hash !== hash) history.replaceState(null, '', `${window.location.pathname}${window.location.search}${hash}`);
+}
 
 onMounted(async () => {
   try {
@@ -32,6 +40,7 @@ function handlePreview() {
 function handleSignedOut() {
   user.value = null;
   demo.value = false;
+  showView('chat');
 }
 </script>
 
@@ -42,10 +51,16 @@ function handleSignedOut() {
     @authenticated="handleAuthenticated"
     @preview="handlePreview"
   />
+  <DashboardPage
+    v-else-if="view === 'ops' && !demo"
+    :user="user"
+    @back="showView('chat')"
+  />
   <ChatPage
     v-else
     :user="user"
     :demo="demo"
     @signed-out="handleSignedOut"
+    @open-dashboard="showView('ops')"
   />
 </template>

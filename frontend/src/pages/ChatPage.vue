@@ -2,6 +2,7 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { authApi } from '../api/authApi';
 import { ragApi } from '../api/ragApi';
+import { opsApi } from '../api/opsApi';
 import { voiceApi } from '../api/voiceApi';
 import ChatComposer from '../components/ChatComposer.vue';
 import ChatHeader from '../components/ChatHeader.vue';
@@ -18,7 +19,7 @@ const props = defineProps({
   user: { type: String, required: true },
   demo: { type: Boolean, default: false },
 });
-const emit = defineEmits(['signed-out']);
+const emit = defineEmits(['signed-out', 'open-dashboard']);
 
 const draft = ref('');
 const busy = ref(false);
@@ -263,6 +264,8 @@ async function send(text = '') {
       assistantMessage.needsReview = data.needs_review === true;
       assistantMessage.handoff = data.handoff === true;
       assistantMessage.clarifyingQuestions = Array.isArray(data.clarifying_questions) ? data.clarifying_questions : [];
+      assistantMessage.logId = Number.isInteger(data.log_id) ? data.log_id : null;
+      assistantMessage.feedback = null;
       assistantMessage.text = data.answer.trim();
       assistantMessage.pending = false;
       assistantMessage.streaming = false;
@@ -293,6 +296,31 @@ async function send(text = '') {
     busy.value = false;
     scroll();
   }
+}
+
+async function rateAnswer(message, rating) {
+  if (!message.logId || message.feedbackSaving || props.demo) return;
+  const previous = message.feedback;
+  message.feedback = rating;
+  message.feedbackSaving = true;
+  error.value = '';
+  try {
+    await opsApi.rate(message.logId, rating);
+    notice.value = rating === 1
+      ? '평가를 저장했어요. 운영자가 확인하면 비슷한 질문의 답변 근거로 쓰입니다.'
+      : '평가를 저장했어요. 운영자가 이 답변을 확인합니다.';
+  } catch (rateError) {
+    message.feedback = previous;
+    error.value = rateError.message;
+  } finally {
+    message.feedbackSaving = false;
+  }
+}
+
+function openDashboard() {
+  if (controlsDisabled.value) return;
+  stopAudio();
+  emit('open-dashboard');
 }
 
 async function upload(file) {
@@ -390,6 +418,7 @@ async function speak(message) {
         @update:streaming="streamingEnabled = $event"
         @open-menu="menu = true"
         @new-chat="newChat"
+        @open-dashboard="openDashboard"
       />
       <div v-if="demo" class="demo-banner">화면 미리보기 모드입니다. 답변은 예시이며 실제 자료를 검색하지 않습니다.</div>
       <MessageList
@@ -405,6 +434,7 @@ async function speak(message) {
         :disabled="controlsDisabled"
         @send-example="send"
         @speak="speak"
+        @feedback="rateAnswer"
       />
       <ChatComposer
         v-model:draft="draft"
