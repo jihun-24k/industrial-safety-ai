@@ -966,7 +966,7 @@ def finish_rag(state: dict, raw: str) -> dict:
         "prompt": q,
         "needs_review": emergency,
         "search_queries": [query for _, query in queries[1:]],
-                        "clarifying_questions": state.get("typo_questions", []) + ([] if is_information_only(q) else (plan or {}).get("clarifying_questions", [])),
+        "clarifying_questions": state.get("typo_questions", []) + ([] if is_information_only(q) else (plan or {}).get("clarifying_questions", [])),
         "graph_retrieval": state.get("graph_retrieval", {}),
     }
     if not final or final.upper().startswith("N/A"):
