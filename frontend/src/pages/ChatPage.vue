@@ -30,6 +30,7 @@ const pendingConversation = ref(null);
 const menu = ref(false);
 const speakingId = ref(null);
 const ttsLoading = ref(null);
+const speechLanguage = ref('ko');
 const messageList = ref(null);
 const streamingEnabled = ref(true);
 let audio = null;
@@ -99,6 +100,11 @@ onMounted(async () => {
 
 function scroll() {
   messageList.value?.scrollToBottom();
+}
+
+function changeSpeechLanguage(language) {
+  stopAudio();
+  speechLanguage.value = language;
 }
 
 function stopAudio() {
@@ -316,7 +322,13 @@ async function speak(message) {
       speakingId.value = message.id;
       window.speechSynthesis.speak(utterance);
     } else {
-      const data = await voiceApi.synthesize(message.text);
+      if (message.text.length > 4096) throw new Error('음성으로 읽을 수 있는 길이(4,096자)를 초과합니다. 답변을 짧게 나누어 주세요.');
+      const language = speechLanguage.value;
+      const data = await voiceApi.synthesize(message.text, language);
+      if (data.target_language !== language || data.original_text !== message.text || !data.translated_text) {
+        throw new Error('번역 결과를 확인하지 못했습니다. 다시 시도해 주세요.');
+      }
+      message.speechTranslation = data;
       if (!data.file_path?.startsWith('/uploads/')) throw new Error('음성 파일을 받지 못했습니다.');
       audio = new Audio(`/voice-api${data.file_path}?t=${Date.now()}`);
       audio.onended = () => { speakingId.value = null; };
@@ -355,6 +367,8 @@ async function speak(message) {
       <ChatHeader
         :demo="demo"
         :streaming="streamingEnabled"
+        :language="speechLanguage"
+        @update:language="changeSpeechLanguage"
         :mode-disabled="controlsDisabled"
         @update:streaming="streamingEnabled = $event"
         @open-menu="menu = true"
@@ -368,6 +382,7 @@ async function speak(message) {
         :busy="busy"
         :tts-loading="ttsLoading"
         :speaking-id="speakingId"
+        :speech-language="speechLanguage"
         :examples="examples"
         :demo="demo"
         :disabled="controlsDisabled"
