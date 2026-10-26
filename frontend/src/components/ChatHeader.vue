@@ -1,11 +1,13 @@
 <script setup>
+import { speechLanguages } from '../utils/translation';
 defineProps({
+  language: { type: String, default: 'ko' },
   demo: { type: Boolean, default: false },
   streaming: { type: Boolean, default: true },
   modeDisabled: { type: Boolean, default: false },
 });
 
-defineEmits(['open-menu', 'update:streaming']);
+defineEmits(['open-menu', 'update:language', 'update:streaming']);
 </script>
 
 <template>
@@ -17,6 +19,12 @@ defineEmits(['open-menu', 'update:streaming']);
       <span class="header-caption">함께 만드는 안전한 현장</span>
     </div>
     <div class="header-actions">
+      <label class="speech-language">
+        <span class="sr-only">답변 음성 언어</span>
+        <select :value="language" :disabled="modeDisabled || demo" aria-label="답변 음성 언어" @change="$emit('update:language', $event.target.value)">
+          <option v-for="item in speechLanguages" :key="item.code" :value="item.code">{{ item.label }}</option>
+        </select>
+      </label>
       <button
         type="button"
         class="stream-toggle"
