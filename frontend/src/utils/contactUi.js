@@ -1,0 +1,8 @@
+const copy = {
+  ko: { heading: '담당 연락처', recent: '최근 답변 연락처', call: '전화하기', confirm: '현재 기관에 맞는 번호인지 확인한 뒤 전화 앱을 여세요.', open: '전화 앱 열기', preview: '전화하기 · 미리보기', empty: '답변에서 통화 가능한 번호가 확인되지 않았어요.', note: '기관의 비상연락망을 확인하세요. 지역번호나 담당자를 임의로 보충하지 않습니다.' },
+  en: { heading: 'Contact information', recent: 'Contacts from the latest answer', call: 'Call', confirm: 'Confirm that this number belongs to the intended institution before opening your phone app.', open: 'Open phone app', preview: 'Call · Preview', empty: 'No callable phone number was found in this answer.', note: 'Check your institution’s emergency contacts. Missing area codes and contacts are not inferred.' },
+  zh: { heading: '联系信息', recent: '最新回答中的联系方式', call: '拨打电话', confirm: '打开电话应用前，请确认此号码属于您要联系的机构。', open: '打开电话应用', preview: '拨打电话 · 预览', empty: '此回答中未找到可拨打的电话号码。', note: '请查看所在机构的紧急联系表。不会擅自补充区号或联系人。' },
+  ja: { heading: '連絡先', recent: '最新の回答の連絡先', call: '電話する', confirm: '電話アプリを開く前に、連絡したい機関の番号か確認してください。', open: '電話アプリを開く', preview: '電話する · プレビュー', empty: '回答に発信可能な電話番号が見つかりませんでした。', note: '所属機関の緊急連絡網を確認してください。市外局番や担当者を推測して補いません。' },
+  vi: { heading: 'Thông tin liên hệ', recent: 'Liên hệ trong câu trả lời mới nhất', call: 'Gọi điện', confirm: 'Xác nhận số điện thoại thuộc đúng cơ quan cần liên hệ trước khi mở ứng dụng điện thoại.', open: 'Mở ứng dụng điện thoại', preview: 'Gọi điện · Xem trước', empty: 'Không tìm thấy số điện thoại có thể gọi trong câu trả lời.', note: 'Kiểm tra danh bạ khẩn cấp của cơ quan. Không tự suy đoán mã vùng hoặc người phụ trách.' },
+};
+export const contactUi = language => copy[language] || copy.ko;

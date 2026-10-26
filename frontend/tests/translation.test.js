@@ -73,3 +73,37 @@ test('stream delivers Korean interpretation before answer tokens and propagates 
     await assert.rejects(ragApi.queryStream({ prompt: 'Then what?' }), /번역 실패/);
   } finally { globalThis.fetch = original; }
 });
+
+test('contact translation only replaces display labels and invalidates changed source metadata', async () => {
+  const { contactTranslationInput, localizedContacts } = await import('../src/utils/translation.js');
+  const contacts = [{ number: '02-760-2796', dialNumber: '027602796', name: '연구실 안전관리', availability: '주간 / 야간', dialable: true }];
+  const input = contactTranslationInput(contacts);
+  const message = { text: '원문', speechTranslation: { original_text: '원문', target_language: 'en', original_contacts: input,
+    translated_contacts: [{ id: input[0].id, name: 'Laboratory Safety Management', availability: 'Daytime / Nighttime', number: '911', dialNumber: '911' }] } };
+  const result = localizedContacts(message, 'en', contacts);
+  assert.equal(result[0].displayName, 'Laboratory Safety Management');
+  assert.equal(result[0].displayAvailability, 'Daytime / Nighttime');
+  assert.equal(result[0].number, contacts[0].number);
+  assert.equal(result[0].dialNumber, contacts[0].dialNumber);
+  assert.equal(result[0].originalName, contacts[0].name);
+  assert.equal(localizedContacts(message, 'ko', contacts), contacts);
+  assert.equal(localizedContacts(message, 'vi', contacts), contacts);
+  assert.equal(localizedContacts({ ...message, text: '변경된 원문' }, 'en', contacts), contacts);
+  const changed = [{ ...contacts[0], availability: '주간' }];
+  assert.equal(localizedContacts(message, 'en', changed), changed);
+  assert.equal(contacts[0].displayName, undefined);
+});
+
+test('speech API includes only contact IDs and translatable labels in the request', async () => {
+  const { contactTranslationInput } = await import('../src/utils/translation.js');
+  const original = globalThis.fetch;
+  try {
+    const input = contactTranslationInput([{ number: '119', dialNumber: '119' }]);
+    globalThis.fetch = async (_url, options) => {
+      assert.deepEqual(JSON.parse(options.body.get('contacts')), input);
+      assert.deepEqual(Object.keys(input[0]), ['id', 'name', 'availability']);
+      return Response.json({ file_path: '/uploads/test.mp3' });
+    };
+    await voiceApi.synthesize('신고하세요', 'en', input);
+  } finally { globalThis.fetch = original; }
+});

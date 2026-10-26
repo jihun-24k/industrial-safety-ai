@@ -6,6 +6,8 @@ import { voiceApi } from '../api/voiceApi';
 import ChatComposer from '../components/ChatComposer.vue';
 import ChatHeader from '../components/ChatHeader.vue';
 import ConversationSidebar from '../components/ConversationSidebar.vue';
+import { contactTranslationInput, localizedContacts } from '../utils/translation';
+import { contactUi } from '../utils/contactUi';
 import ContactCards from '../components/ContactCards.vue';
 import { answerContacts, isInformationOnly, questionForReply } from '../utils/answerPresentation';
 import MessageList from '../components/MessageList.vue';
@@ -45,10 +47,12 @@ const examples = [
 const conversation = computed(() => pendingConversation.value || conversations.value.find((chat) => chat.id === activeId.value));
 const messages = computed(() => conversation.value?.messages || []);
 const latestReply = computed(() => [...messages.value].reverse().find(message => message.role === 'assistant'));
-const railContacts = computed(() => {
+const originalRailContacts = computed(() => {
   const reply = latestReply.value;
   return !reply || reply.pending || reply.streaming || isInformationOnly(questionForReply(messages.value, reply)) ? [] : (reply.contacts || answerContacts(reply.text));
 });
+const railContacts = computed(() => localizedContacts(latestReply.value, speechLanguage.value, originalRailContacts.value));
+const contactCopy = computed(() => contactUi(speechLanguage.value));
 const controlsDisabled = computed(() => busy.value || uploading.value || !!ttsLoading.value || voiceState.value !== 'idle');
 
 let voiceBase = '';
@@ -336,7 +340,8 @@ async function speak(message) {
     } else {
       if (message.text.length > 4096) throw new Error('음성으로 읽을 수 있는 길이(4,096자)를 초과합니다. 답변을 짧게 나누어 주세요.');
       const language = speechLanguage.value;
-      const data = await voiceApi.synthesize(message.text, language);
+      const contacts = isInformationOnly(questionForReply(messages.value, message)) ? [] : (message.contacts || answerContacts(message.text));
+      const data = await voiceApi.synthesize(message.text, language, contactTranslationInput(contacts));
       if (data.target_language !== language || data.original_text !== message.text || !data.translated_text) {
         throw new Error('번역 결과를 확인하지 못했습니다. 다시 시도해 주세요.');
       }
@@ -416,9 +421,9 @@ async function speak(message) {
         @dismiss-notice="notice = ''"
       />
     </main>
-    <aside v-if="railContacts.length" class="desktop-contact-rail" aria-label="최근 답변 연락처">
-      <p class="rail-label">최근 답변 연락처</p>
-      <ContactCards :contacts="railContacts" :demo="demo" />
+    <aside v-if="railContacts.length" class="desktop-contact-rail" :aria-label="contactCopy.recent">
+      <p class="rail-label">{{ contactCopy.recent }}</p>
+      <ContactCards :contacts="railContacts" :demo="demo" :language="speechLanguage" />
     </aside>
   </div>
 </template>

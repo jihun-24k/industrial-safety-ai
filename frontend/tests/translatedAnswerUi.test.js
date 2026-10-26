@@ -71,3 +71,42 @@ test('normalized input preserves the existing information-only presentation for 
   assert.ok(!html.includes('class="response-contacts"'));
   assert.ok(!html.includes('추가 확인이 필요해요'));
 });
+
+test('translated contact cards keep source phone targets and show the original institution', async () => {
+  const { contactTranslationInput } = await import('../src/utils/translation.js');
+  const message = assistant();
+  message.contacts[0].availability = '주간 / 야간';
+  message.speechTranslation.original_contacts = contactTranslationInput(message.contacts);
+  message.speechTranslation.translated_contacts = [{
+    id: message.speechTranslation.original_contacts[0].id,
+    name: 'Laboratory Safety Management', availability: 'Daytime / Nighttime',
+  }];
+  const html = await render(message);
+  assert.match(html, /Laboratory Safety Management/);
+  assert.match(html, /Daytime \/ Nighttime/);
+  assert.match(html, /contact-original-name[^>]*lang="ko">연구실 안전관리/);
+  assert.match(html, /☎ Call/);
+  assert.match(html, /Open phone app/);
+  assert.match(html, /href="tel:027602796"/);
+  assert.ok(!html.includes('☎ 전화하기'));
+});
+
+test('contact button, preview, empty-state, and confirmation copy is localized for every supported language', async () => {
+  const { default: ContactCards } = await server.ssrLoadModule('/src/components/ContactCards.vue');
+  const { contactUi } = await import('../src/utils/contactUi.js');
+  for (const language of ['ko', 'en', 'zh', 'ja', 'vi']) {
+    const copy = contactUi(language);
+    const contacts = [{ number: '119', dialNumber: '119', dialable: true }];
+    const live = await renderToString(createSSRApp(ContactCards, { contacts, language }));
+    assert.ok(live.includes(copy.call));
+    assert.ok(live.includes(copy.confirm));
+    assert.ok(live.includes(copy.open));
+    assert.match(live, /href="tel:119"/);
+    const preview = await renderToString(createSSRApp(ContactCards, { contacts, language, demo: true }));
+    assert.ok(preview.includes(copy.preview));
+    assert.ok(!preview.includes('href="tel:'));
+    const empty = await renderToString(createSSRApp(ContactCards, { contacts: [], language }));
+    assert.ok(empty.includes(copy.empty));
+    assert.ok(empty.includes(copy.note));
+  }
+});

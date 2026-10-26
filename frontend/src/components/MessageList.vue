@@ -2,7 +2,8 @@
 import { nextTick, ref } from 'vue';
 import AnswerCards from './AnswerCards.vue';
 import ContactCards from './ContactCards.vue';
-import { translationFor, speechLanguages } from '../utils/translation';
+import { translationFor, speechLanguages, localizedContacts } from '../utils/translation';
+import { contactUi } from '../utils/contactUi';
 import SafetyAssistant from './SafetyAssistant.vue';
 import { answerSections, displayAnswerSections, answerContacts, compactSources, contactCondensedText, isInformationOnly, questionForReply } from '../utils/answerPresentation';
 
@@ -98,8 +99,8 @@ defineExpose({ scrollToBottom });
               {{ ttsLoading === message.id ? '◌ 음성 준비 중…' : speakingId === message.id ? '■ 재생 중지' : speechLanguage === 'ko' ? '◖ 답변 듣기' : '◖ 번역하고 듣기' }}
             </button>
           </div>
-          <aside v-if="!message.streaming && contactsFor(message).length" class="response-contacts" aria-label="답변 연락처">
-            <ContactCards :contacts="contactsFor(message)" :demo="demo" />
+          <aside v-if="!message.streaming && contactsFor(message).length" class="response-contacts" :aria-label="contactUi(speechLanguage).heading">
+            <ContactCards :contacts="localizedContacts(message, speechLanguage, contactsFor(message))" :demo="demo" :language="speechLanguage" />
           </aside>
         </div>
       </article>
