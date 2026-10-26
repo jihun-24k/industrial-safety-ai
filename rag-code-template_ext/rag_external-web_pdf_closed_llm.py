@@ -69,6 +69,7 @@ import sys
 PROJECT_ROOT = BASE_DIR.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+from pipeline.query_translation import normalize_query, QueryTranslationError
 from pipeline.retrieval_context import path_text, select_context_rows
 from pipeline.safety_workflow import assemble as assemble_safety, ANSWER_POLICY, generation_requirements, ensure_contact_details, is_information_only
 from pipeline.knowledge_graph import evidence_eligible
@@ -144,6 +145,8 @@ CHAT_SCHEMA = (
       conversation_id CHAR(36) NOT NULL,
       role VARCHAR(16) NOT NULL,
       text LONGTEXT NOT NULL,
+      normalized_text LONGTEXT NULL,
+      source_language VARCHAR(3) NULL,
       sources JSON NULL,
       needs_review BOOLEAN NOT NULL DEFAULT FALSE,
       handoff BOOLEAN NOT NULL DEFAULT FALSE,
@@ -164,6 +167,12 @@ async def create_chat_tables():
     async with engine.begin() as connection:
         for statement in CHAT_SCHEMA:
             await connection.execute(text(statement))
+        # MariaDB: additive, idempotent migration for existing volumes.
+        await connection.execute(text("""
+            ALTER TABLE chat_messages
+              ADD COLUMN IF NOT EXISTS normalized_text LONGTEXT NULL,
+              ADD COLUMN IF NOT EXISTS source_language VARCHAR(3) NULL
+        """))
 
 # ✅ 전역 벡터 저장소
 VECTORSTORE_WEB = None
@@ -359,6 +368,8 @@ class RAGRequest(BaseModel):
 # ✅ 응답 모델: 교재 Day2 REST API 스키마 (answer · sources · needs_review · handoff)
 class AnswerResponse(BaseModel):
     prompt: str
+    normalized_prompt: str = ""
+    source_language: str = "und"
     answer: str
     sources: List[str] = []
     needs_review: bool = False   # 긴급·부상 상황 → 사람(안전관리자) 확인 필요
@@ -433,7 +444,7 @@ async def get_conversation_messages(conversation_id: str, request: Request):
         if not conversation:
             raise HTTPException(status_code=404, detail="대화를 찾을 수 없습니다.")
         result = await connection.execute(text("""
-            SELECT id, role, text, sources, needs_review, handoff,
+            SELECT id, role, text, normalized_text, source_language, sources, needs_review, handoff,
                    clarifying_questions, created_at
             FROM chat_messages
             WHERE conversation_id = :conversation_id
@@ -548,12 +559,27 @@ async def prepare_chat(username: str, rag_request: RAGRequest) -> dict:
         if not conversation:
             raise HTTPException(status_code=404, detail="대화를 찾을 수 없습니다.")
         result = await connection.execute(text("""
-            SELECT id, role, text AS content FROM chat_messages
+            SELECT id, role, text AS content, normalized_text, source_language FROM chat_messages
             WHERE conversation_id = :conversation_id
               AND (:cursor IS NULL OR id > :cursor)
             ORDER BY id ASC
         """), {"conversation_id": conversation_id, "cursor": conversation["summary_through_message_id"]})
         unsummarized = [dict(row) for row in result.mappings()]
+
+    pending_normalizations = []
+    for message in unsummarized:
+        if message["role"] != "user":
+            continue
+        if message.get("normalized_text"):
+            message["content"] = message["normalized_text"]
+        else:
+            # Legacy foreign-language turns must also become Korean context.
+            normalized = await translate_input(message["content"])
+            message["content"] = normalized.normalized_prompt
+            pending_normalizations.append({
+                "id": message["id"], "normalized_text": normalized.normalized_prompt,
+                "source_language": normalized.source_language,
+            })
 
     stored_summary = conversation["summary"]
     summary = _bounded_summary(stored_summary)
@@ -578,9 +604,35 @@ async def prepare_chat(username: str, rag_request: RAGRequest) -> dict:
         "conversation_id": conversation_id, "title": conversation["title"], "summary": summary,
         "turns": recent_turns,
         "search_question": contextual_search_question(rag_request.prompt.strip(), summary, recent_messages),
-        "is_new": False, "pending_summary": pending_summary,
+        "is_new": False, "pending_normalizations": pending_normalizations,
+        "pending_summary": pending_summary,
         "pending_summary_cursor": pending_summary_cursor,
     }
+
+
+async def authorize_conversation(username: str, rag_request: RAGRequest):
+    """Reject inaccessible conversations before making any translation request."""
+    if rag_request.conversation_id:
+        async with engine.connect() as connection:
+            if not await _owned_conversation(connection, rag_request.conversation_id, username):
+                raise HTTPException(status_code=404, detail="대화를 찾을 수 없습니다.")
+
+
+async def translate_input(prompt: str):
+    try:
+        return await normalize_query(prompt)
+    except QueryTranslationError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+async def prepare_query(username: str, rag_request: RAGRequest):
+    normalized = await translate_input(rag_request.prompt)
+    processing_request = rag_request.model_copy(update={"prompt": normalized.normalized_prompt})
+    chat = await prepare_chat(username, processing_request)
+    chat["input_translation"] = normalized
+    if chat["is_new"]:
+        chat["title"] = rag_request.prompt.strip()[:60]
+    return processing_request, chat
 
 
 async def save_turn(username: str, chat: dict, result: dict):
@@ -603,10 +655,18 @@ async def save_turn(username: str, chat: dict, result: dict):
                   AND (summary_through_message_id IS NULL OR summary_through_message_id < :cutoff)
             """), {"summary": chat["pending_summary"], "cutoff": chat["pending_summary_cursor"],
                    "conversation_id": chat["conversation_id"], "username": username})
+        for prior in chat.get("pending_normalizations", []):
+            await connection.execute(text("""
+                UPDATE chat_messages SET normalized_text = :normalized_text, source_language = :source_language
+                WHERE id = :id AND conversation_id = :conversation_id AND role = 'user'
+                  AND normalized_text IS NULL
+            """), {**prior, "conversation_id": chat["conversation_id"]})
         await connection.execute(text("""
-            INSERT INTO chat_messages (conversation_id, role, text)
-            VALUES (:conversation_id, 'user', :content)
-        """), {"conversation_id": chat["conversation_id"], "content": result["prompt"]})
+            INSERT INTO chat_messages (conversation_id, role, text, normalized_text, source_language)
+            VALUES (:conversation_id, 'user', :content, :normalized_text, :source_language)
+        """), {"conversation_id": chat["conversation_id"], "content": result["prompt"],
+               "normalized_text": result.get("normalized_prompt", result["prompt"]),
+               "source_language": result.get("source_language", "und")})
         await connection.execute(text("""
             INSERT INTO chat_messages
               (conversation_id, role, text, sources, needs_review, handoff, clarifying_questions)
@@ -626,6 +686,11 @@ async def save_turn(username: str, chat: dict, result: dict):
 
 async def finalize_turn(request: Request, username: str, chat: dict, state: dict, raw: str) -> dict:
     result = finish_rag(state, raw)
+    translation = chat.get("input_translation")
+    if translation:
+        result.update(prompt=translation.original_prompt,
+                      normalized_prompt=translation.normalized_prompt,
+                      source_language=translation.source_language)
     result.update(conversation_id=chat["conversation_id"], title=chat["title"])
     if await request.is_disconnected():
         raise asyncio.CancelledError
@@ -1007,8 +1072,9 @@ def sse_event(event: str, data: dict) -> str:
 async def rag_query(request: Request, rag_request: RAGRequest = Body(...)):
     try:
         username = await authenticated_username(request)
-        chat = await prepare_chat(username, rag_request)
-        state = await prepare_rag(rag_request, chat["search_question"])
+        await authorize_conversation(username, rag_request)
+        processing_request, chat = await prepare_query(username, rag_request)
+        state = await prepare_rag(processing_request, chat["search_question"])
         if not state["context"].strip():
             raw = "N/A"
         else:
@@ -1029,12 +1095,17 @@ async def rag_query(request: Request, rag_request: RAGRequest = Body(...)):
 @app.post("/rag-query/stream", summary="Closed Source LLM + 벡터 DB 스트리밍 질의", tags=["질의 응답"])
 async def rag_query_stream(request: Request, rag_request: RAGRequest = Body(...)):
     username = await authenticated_username(request)
-    chat = await prepare_chat(username, rag_request)
+    await authorize_conversation(username, rag_request)
 
     async def generate():
         try:
+            yield sse_event("status", {"phase": "translating", "message": "질문을 한국어로 해석하고 있어요…"})
+            processing_request, chat = await prepare_query(username, rag_request)
+            translation = chat["input_translation"]
+            yield sse_event("normalized", {"normalized_prompt": translation.normalized_prompt,
+                                           "source_language": translation.source_language})
             yield sse_event("status", {"phase": "retrieving", "message": "관련 자료를 찾고 있어요…"})
-            state = await prepare_rag(rag_request, chat["search_question"])
+            state = await prepare_rag(processing_request, chat["search_question"])
             if not state["context"].strip():
                 result = await finalize_turn(request, username, chat, state, "N/A")
                 yield sse_event("token", {"text": result["answer"]})

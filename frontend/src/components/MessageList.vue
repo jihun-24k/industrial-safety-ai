@@ -59,7 +59,13 @@ defineExpose({ scrollToBottom });
           <span v-if="message.preview" class="preview-label">예시 답변 · 실제 검색 없음</span>
         </div>
         <div v-if="message.pending" class="thinking glass-card" role="status">{{ message.status || '답변을 준비하고 있어요…' }}<span class="dots">···</span></div>
-        <div v-else-if="message.role === 'user'" class="user-message">{{ message.text }}</div>
+        <div v-else-if="message.role === 'user'" class="user-message">
+          {{ message.text }}
+          <details v-if="message.normalizedText && message.normalizedText !== message.text" class="input-translation">
+            <summary>한국어로 해석한 질문</summary>
+            <div lang="ko">{{ message.normalizedText }}</div>
+          </details>
+        </div>
         <div v-else class="response-layout">
           <div class="response-main">
             <section v-if="message.handoff || (message.needsReview && !informational(message))" class="review-card glass-card">
