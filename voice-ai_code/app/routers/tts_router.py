@@ -3,6 +3,10 @@ from fastapi import APIRouter, Form, Depends, HTTPException, Cookie
 from jose import jwt, JWTError
 from app.services.tts_service import text_to_speech
 import os
+import uuid
+from pathlib import Path
+from app.services.processor_service import get_llm_response, SUPPORTED_TARGET_LANGUAGES
+from app.services.tts_service import MAX_SPEECH_LENGTH
 
 router = APIRouter()
 
@@ -57,23 +61,34 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 @router.post("/")
-async def tts_endpoint(
-    current_user: dict = Depends(get_current_user),   # Authentication added
-    text: str = Form(...)
+def tts_endpoint(
+    current_user: dict = Depends(get_current_user),
+    text: str = Form(..., min_length=1, max_length=4096),
+    target_language: str = Form("ko"),
 ):
+    # FastAPI runs this synchronous handler in its worker pool.
+    if target_language not in SUPPORTED_TARGET_LANGUAGES:
+        raise HTTPException(status_code=400, detail="지원하지 않는 번역 언어입니다.")
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="읽을 내용이 없습니다.")
+    translated = text
+    if target_language != "ko":
+        try:
+            translated = get_llm_response(text, target_language)
+        except Exception:
+            raise HTTPException(status_code=502, detail="번역을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.")
+    if len(translated) > MAX_SPEECH_LENGTH:
+        raise HTTPException(status_code=400, detail="번역문이 음성 길이 제한(4,096자)을 초과합니다. 답변을 짧게 나누어 주세요.")
+    file_name = f"{uuid.uuid4()}_tts.mp3"
+    output_path = Path(UPLOAD_DIR) / file_name
     try:
-        file_name = "openai_tts_output.mp3"
-        output_path = os.path.join(UPLOAD_DIR, file_name)
-
-        # Actual TTS generation processing
-        file_path = text_to_speech(text, output_path)  # Absolute path for internal storage
-
-        # Return web path for client
-        return {
-            "message": "TTS processing complete (OpenAI TTS)",
-            "file_path": f"/uploads/{file_name}",  # Return web path only
-            "user": current_user  # For debugging: verify user information
-        }
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        text_to_speech(translated, str(output_path))
+    except Exception:
+        output_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=502, detail="음성을 생성하지 못했습니다. 잠시 후 다시 시도해 주세요.")
+    return {
+        "file_path": f"/uploads/{file_name}",
+        "original_text": text,
+        "translated_text": translated,
+        "target_language": target_language,
+    }

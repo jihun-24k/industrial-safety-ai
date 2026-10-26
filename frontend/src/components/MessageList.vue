@@ -1,6 +1,7 @@
 <script setup>
 import { nextTick, ref } from 'vue';
 import ContactCards from './ContactCards.vue';
+import { translationFor, speechLanguages } from '../utils/translation';
 import SafetyAssistant from './SafetyAssistant.vue';
 import { answerSections, answerContacts, answerFragments } from '../utils/answerPresentation';
 
@@ -8,6 +9,7 @@ const props = defineProps({
   messages: { type: Array, default: () => [] },
   user: { type: String, required: true },
   busy: { type: Boolean, default: false },
+  speechLanguage: { type: String, default: 'ko' },
   ttsLoading: { type: String, default: null },
   speakingId: { type: String, default: null },
   examples: { type: Array, default: () => [] },
@@ -75,8 +77,12 @@ defineExpose({ scrollToBottom });
               <ul><li v-for="source in message.sources" :key="source">{{ source }}</li></ul>
             </details>
             <p v-else-if="!message.streaming" class="source-note">{{ message.source }}</p>
+            <section v-if="speechLanguage !== 'ko' && translationFor(message, speechLanguage)" class="glass-card translation-card" :lang="speechLanguage">
+              <h2>{{ speechLanguages.find(item => item.code === speechLanguage)?.label }} 번역</h2>
+              <div class="message-text">{{ translationFor(message, speechLanguage).translated_text }}</div>
+            </section>
             <button v-if="!message.streaming && message.text" class="listen-button" :disabled="!!ttsLoading" :aria-pressed="speakingId === message.id" @click="$emit('speak', message)">
-              {{ ttsLoading === message.id ? '◌ 음성 준비 중…' : speakingId === message.id ? '■ 재생 중지' : '◖ 답변 듣기' }}
+              {{ ttsLoading === message.id ? '◌ 음성 준비 중…' : speakingId === message.id ? '■ 재생 중지' : speechLanguage === 'ko' ? '◖ 답변 듣기' : '◖ 번역하고 듣기' }}
             </button>
           </div>
           <aside v-if="!message.streaming" class="response-contacts" aria-label="답변 연락처">

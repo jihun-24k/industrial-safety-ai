@@ -71,7 +71,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 @router.post("/")
-async def stt_to_tts(
+def stt_to_tts(
     current_user: dict = Depends(get_current_user),
     audio: UploadFile = File(...),
     target_language: str = Form("en"),
