@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 from app.services.processor_service import get_llm_response, SUPPORTED_TARGET_LANGUAGES
 from app.services.tts_service import MAX_SPEECH_LENGTH
+from app.services.contact_translation import parse_contacts, translate_answer
 
 router = APIRouter()
 
@@ -65,18 +66,26 @@ def tts_endpoint(
     current_user: dict = Depends(get_current_user),
     text: str = Form(..., min_length=1, max_length=4096),
     target_language: str = Form("ko"),
+    contacts: str = Form("[]", max_length=12000),
 ):
     # FastAPI runs this synchronous handler in its worker pool.
     if target_language not in SUPPORTED_TARGET_LANGUAGES:
         raise HTTPException(status_code=400, detail="지원하지 않는 번역 언어입니다.")
     if not text.strip():
         raise HTTPException(status_code=400, detail="읽을 내용이 없습니다.")
-    translated = text
-    if target_language != "ko":
-        try:
-            translated = get_llm_response(text, target_language)
-        except Exception:
-            raise HTTPException(status_code=502, detail="번역을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.")
+    try:
+        original_contacts = parse_contacts(contacts)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="연락처 표시 정보가 올바르지 않습니다.")
+    try:
+        # Preserve the original no-contact path for existing clients.
+        if original_contacts:
+            translated, translated_contacts = translate_answer(text, target_language, original_contacts)
+        else:
+            translated = text if target_language == "ko" else get_llm_response(text, target_language)
+            translated_contacts = []
+    except Exception:
+        raise HTTPException(status_code=502, detail="번역을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.")
     if len(translated) > MAX_SPEECH_LENGTH:
         raise HTTPException(status_code=400, detail="번역문이 음성 길이 제한(4,096자)을 초과합니다. 답변을 짧게 나누어 주세요.")
     file_name = f"{uuid.uuid4()}_tts.mp3"
@@ -91,4 +100,6 @@ def tts_endpoint(
         "original_text": text,
         "translated_text": translated,
         "target_language": target_language,
+        "original_contacts": [item.model_dump() for item in original_contacts],
+        "translated_contacts": translated_contacts,
     }

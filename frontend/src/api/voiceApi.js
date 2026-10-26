@@ -6,10 +6,10 @@ export const voiceApi = {
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
     return new WebSocket(url);
   },
-  synthesize(text, targetLanguage = 'ko') {
+  synthesize(text, targetLanguage = 'ko', contacts = []) {
     return request('/voice-api/tts/', {
       method: 'POST',
-      body: new URLSearchParams({ text, target_language: targetLanguage }),
+      body: new URLSearchParams({ text, target_language: targetLanguage, contacts: JSON.stringify(contacts) }),
     });
   },
 
