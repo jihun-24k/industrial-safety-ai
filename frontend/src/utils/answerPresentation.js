@@ -4,7 +4,7 @@ export function answerSections(text = '') {
   let current = { heading: '', text: '' };
   for (const line of text.split('\n')) {
     const heading = line.match(/^#{1,4}\s+(.+)/);
-    const item = line.match(/^\s*(\d+)[.)]\s+(?:\*\*)?([^:：\n]{1,40}?)(?:\*\*)?[:：](?:\*\*)?\s*(.*)$/);
+    const item = line.match(/^\s*(\d+)[.)]\s+(?:\*\*)?([^:：\n]{1,120}?)(?:\*\*)?[:：](?:\*\*)?\s*(.*)$/);
     if (heading) {
       if (current.heading || current.text.trim()) sections.push(current);
       current = { heading: heading[1], text: '' };
@@ -120,7 +120,8 @@ export function isInformationOnly(question = '') {
 }
 export function questionForReply(messages, reply) {
   const index = messages.indexOf(reply);
-  return messages.slice(0, index).reverse().find(message => message.role === 'user')?.text || '';
+  const question = messages.slice(0, index).reverse().find(message => message.role === 'user');
+  return question?.normalizedText || question?.text || '';
 }
 
 // Hide only generated directory rows already represented by a contact card.

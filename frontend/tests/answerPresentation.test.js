@@ -129,3 +129,12 @@ test('combined contacts retain purpose and availability in sentences', () => {
   assert.ok(section.text.includes('주간 및 야간에 연락 가능합니다'));
   assert.ok(!section.text.includes('전화번호는'));
 });
+
+test('long translated numbered headings remain separate cards without dropping text', () => {
+  const heading = 'Immediate first aid and emergency response instructions';
+  const sections = answerSections(`1. ${heading}: Do not touch NaOH.\n2. Reporting: Notify the supervisor.`);
+  assert.equal(sections.length, 2);
+  assert.equal(sections[0].heading, heading);
+  assert.equal(sections[0].text, 'Do not touch NaOH.');
+  assert.equal(sections[1].text, 'Notify the supervisor.');
+});
