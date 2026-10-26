@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { answerSections, answerContacts, contactName, answerFragments, sectionEvidence } from '../src/utils/answerPresentation.js';
+import { answerSections, answerContacts, contactName, answerFragments, compactSources, isInformationOnly, questionForReply, sectionEvidence } from '../src/utils/answerPresentation.js';
 
 test('answer sections retain every paragraph, repeated heading and literal HTML', () => {
   const text='서문\n\n## 상황 확인\n첫 내용\n\n## 상황 확인\n<script>alert(1)</script>\n끝';
@@ -66,4 +66,34 @@ test('department card titles omit contact introductory wording', () => {
   const [contact] = answerContacts('연락처는 대학본부 연구실 안전관리 부서: 760-2796');
   assert.equal(contactName(contact), '대학본부 / 연구실 안전관리');
   assert.equal(contactName({name:'연락처는 대학본부 연구실 안전관리 부서',number:'02-760-2796'}), '대학본부 / 연구실 안전관리');
+});
+
+test('URLs become short source labels without exposing link syntax', () => {
+  assert.equal(compactSources('설명 [https://www.cdc.gov/niosh/npg/npgd0565.html].'), '설명 (출처: CDC/NIOSH).');
+  assert.equal(compactSources('[가성소다](https://www.cdc.gov/niosh/npg/npgd0565.html)'), '가성소다 (출처: CDC/NIOSH)');
+  assert.equal(compactSources('매뉴얼 p.32'), '매뉴얼 p.32');
+  assert.equal(compactSources('https://example.org/doc?q=1'), '(출처: 외부 참고자료)');
+  assert.equal(answerFragments('설명 [https://www.cdc.gov/niosh/npg/npgd0565.html].')[1].citation, true);
+});
+
+test('duplicate source wrapper becomes a single badge without removing safety prose', () => {
+  const text = '주의해야 하며, 노출 시 즉시 세척해야 합니다 (CDC/NIOSH 가성소다(Sodium hydroxide) [https://www.cdc.gov/niosh/npg/npgd0565.html]).';
+  assert.equal(compactSources(text), '주의해야 하며, 노출 시 즉시 세척해야 합니다 (출처: CDC/NIOSH).');
+  assert.equal(compactSources('CDC/NIOSH에 따르면 위험합니다.'), 'CDC/NIOSH에 따르면 위험합니다.');
+});
+
+test('waste department headings exclude narrative for local and full numbers', () => {
+  for (const number of ['760-2611', '02-760-2611']) {
+    const [contact] = answerContacts(`· 연락처: 주간에만 연락 가능한 대학본부 폐시약/폐기물관리 부서의 연락처는 ${number}입니다.`);
+    assert.equal(contactName(contact), '대학본부 / 폐시약·폐기물관리');
+    assert.equal(contact.dialNumber, '027602611');
+  }
+  assert.equal(contactName({name:'주간에만 연락 가능한 대학본부 소방 안전관리 부서의 연락처는'}), '대학본부 / 소방 안전관리');
+});
+
+test('information comparisons hide contacts but actual incidents and contact requests do not', () => {
+  assert.equal(isInformationOnly('가성소다와 암모니아의 NFPA 값을 건강·화재·반응 위험성별로 비교해줘'), true);
+  for (const q of ['염산을 쏟았어 위험성도 알려줘', '암모니아 누출됐어', '위험성 비교와 담당 연락처 알려줘']) assert.equal(isInformationOnly(q), false);
+  const messages = [{role:'user',text:'염산을 쏟았어'}, {role:'assistant'}, {role:'user',text:'NFPA 비교해줘'}, {role:'assistant'}];
+  assert.equal(questionForReply(messages,messages[3]), 'NFPA 비교해줘');
 });

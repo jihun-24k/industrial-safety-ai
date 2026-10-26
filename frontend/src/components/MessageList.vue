@@ -3,7 +3,7 @@ import { nextTick, ref } from 'vue';
 import ContactCards from './ContactCards.vue';
 import { translationFor, speechLanguages } from '../utils/translation';
 import SafetyAssistant from './SafetyAssistant.vue';
-import { answerSections, answerContacts, answerFragments } from '../utils/answerPresentation';
+import { answerSections, answerContacts, answerFragments, compactSources, isInformationOnly, questionForReply } from '../utils/answerPresentation';
 
 const props = defineProps({
   messages: { type: Array, default: () => [] },
@@ -19,7 +19,8 @@ const props = defineProps({
 defineEmits(['send-example', 'speak']);
 const container = ref(null);
 const descriptions = ['누출과 확산 상황 확인', '화재 관련 근거 확인', '피부, 눈, 흡입 상황 확인'];
-const contactsFor = message => message.contacts || answerContacts(message.text);
+const informational = message => isInformationOnly(questionForReply(props.messages, message));
+const contactsFor = message => informational(message) ? [] : (message.contacts || answerContacts(message.text));
 async function scrollToBottom() {
   await nextTick();
   container.value?.scrollTo({ top: container.value.scrollHeight, behavior: 'smooth' });
@@ -60,11 +61,11 @@ defineExpose({ scrollToBottom });
         <div v-else-if="message.role === 'user'" class="user-message">{{ message.text }}</div>
         <div v-else class="response-layout">
           <div class="response-main">
-            <section v-if="message.needsReview || message.handoff" class="review-card glass-card">
+            <section v-if="message.handoff || (message.needsReview && !informational(message))" class="review-card glass-card">
               <h2>! {{ message.handoff ? '담당자 확인이 필요해요' : '추가 확인이 필요해요' }}</h2>
               <p>{{ message.handoff ? '관련 문서 근거가 충분하지 않습니다. 기관의 안전관리자에게 확인하세요.' : '사람의 노출 여부와 현장 상황을 확인해 주세요. AI가 사고 심각도를 확정하지 않습니다.' }}</p>
             </section>
-            <section v-if="message.clarifyingQuestions?.length" class="glass-card">
+            <section v-if="message.clarifyingQuestions?.length && !informational(message)" class="glass-card">
               <h2>상황 확인</h2>
               <ul><li v-for="question in message.clarifyingQuestions" :key="question">{{ question }}</li></ul>
             </section>
@@ -74,7 +75,7 @@ defineExpose({ scrollToBottom });
             </section>
             <details v-if="message.sources?.length" class="sources-card glass-card">
               <summary>근거 문서 확인 <span>{{ message.sources.length }}개</span></summary>
-              <ul><li v-for="source in message.sources" :key="source">{{ source }}</li></ul>
+              <ul><li v-for="source in message.sources" :key="source">{{ compactSources(source) }}</li></ul>
             </details>
             <p v-else-if="!message.streaming" class="source-note">{{ message.source }}</p>
             <section v-if="speechLanguage !== 'ko' && translationFor(message, speechLanguage)" class="glass-card translation-card" :lang="speechLanguage">
@@ -85,7 +86,7 @@ defineExpose({ scrollToBottom });
               {{ ttsLoading === message.id ? '◌ 음성 준비 중…' : speakingId === message.id ? '■ 재생 중지' : speechLanguage === 'ko' ? '◖ 답변 듣기' : '◖ 번역하고 듣기' }}
             </button>
           </div>
-          <aside v-if="!message.streaming" class="response-contacts" aria-label="답변 연락처">
+          <aside v-if="!message.streaming && contactsFor(message).length" class="response-contacts" aria-label="답변 연락처">
             <ContactCards :contacts="contactsFor(message)" :demo="demo" />
           </aside>
         </div>
