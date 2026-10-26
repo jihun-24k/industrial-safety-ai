@@ -37,7 +37,7 @@ export function contactName(contact = {}) {
   if (number === '119') return '119 소방·구급';
   if (number === '112') return '112 경찰';
   // Display alias only when the supplied label names this institution.
-  if (/원주\s*세브란스/.test(contact.name || contact.context || '')) return '원주 세브란스';
+  if (/원주\s*세브란스/.test(contact.name || contact.context || '')) return '원주세브란스 기독병원';
   if (contact.name) return contact.name;
   const context = (contact.context || '').replace(/\*\*/g, '');
   const offset = context.indexOf(contact.number || '');

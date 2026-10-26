@@ -20,7 +20,7 @@ test('long numbers and page references cannot become emergency phone links', () 
 
 test('contact titles use the institution beside each number without repeating instructions', () => {
   const contacts = answerContacts('3. 보고·후속 처리: 필요 시 119에 신고합니다.\n4. 담당 부서·연락처: 연구실 책임자에게 연락합니다. 필요 시 원주세브란스 기독병원(033-741-0114)으로 연락합니다.');
-  assert.deepEqual(contacts.map(contactName), ['119 소방·구급', '원주 세브란스']);
+  assert.deepEqual(contacts.map(contactName), ['119 소방·구급', '원주세브란스 기독병원']);
   assert.equal(contactName({number:'112'}), '112 경찰');
   assert.equal(contactName({number:'02-123-4567', context:'확인 후 02-123-4567에 전화하세요.'}), '연락처');
 });
@@ -39,11 +39,11 @@ test('citation styling preserves all text and does not turn conditions into sour
   assert.deepEqual(fragments.filter(f => f.citation).map(f => f.text), ['(문서 1, 2)', '(안전관리 매뉴얼 p.30)', '[3]']);
 });
 
-test('hospital card uses the requested short label without introductory prose', () => {
+test('hospital card uses the full institution name without introductory prose', () => {
   const [contact] = answerContacts('인근 병원은 원주세브란스 기독병원(033-741-0114)입니다.');
-  assert.equal(contactName(contact), '원주 세브란스');
+  assert.equal(contactName(contact), '원주세브란스 기독병원');
   assert.equal(contact.number, '033-741-0114');
-  assert.equal(contactName({name:'원주 세브란스 기독병원',number:'033-741-0114'}), '원주 세브란스');
+  assert.equal(contactName({name:'원주 세브란스 기독병원',number:'033-741-0114'}), '원주세브란스 기독병원');
 });
 
 test('card evidence uses only its own citations and preserves document labels', () => {
