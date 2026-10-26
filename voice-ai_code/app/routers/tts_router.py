@@ -1,5 +1,5 @@
 from app.config import JWT_SECRET
-from fastapi import APIRouter, Form, Depends, HTTPException, Cookie
+from fastapi import Request, APIRouter, Form, Depends, HTTPException, Cookie
 from jose import jwt, JWTError
 from app.services.tts_service import text_to_speech
 import os
@@ -103,3 +103,36 @@ def tts_endpoint(
         "original_contacts": [item.model_dump() for item in original_contacts],
         "translated_contacts": translated_contacts,
     }
+
+
+async def authenticated_translation_user(request: Request):
+    import httpx
+    cookie = request.headers.get('cookie')
+    if not cookie:
+        raise HTTPException(status_code=401, detail='Authentication required')
+    async with httpx.AsyncClient(timeout=5) as client:
+        response = await client.get(os.getenv('AUTH_CHECK_URL', 'http://auth:8080/api/auth/check'), headers={'cookie': cookie})
+    if not response.is_success or not response.json().get('username'):
+        raise HTTPException(status_code=401, detail='Authentication required')
+    return response.json()
+
+
+@router.post("/translate")
+def translate_endpoint(
+    current_user: dict = Depends(authenticated_translation_user),
+    text: str = Form(..., min_length=1, max_length=24000),
+    target_language: str = Form("ko"),
+    contacts: str = Form("[]", max_length=12000),
+):
+    """Translate display text independently from optional speech generation."""
+    if target_language not in SUPPORTED_TARGET_LANGUAGES:
+        raise HTTPException(status_code=400, detail="Unsupported language")
+    try:
+        original_contacts = parse_contacts(contacts)
+        translated, labels = translate_answer(text, target_language, original_contacts)
+    except Exception:
+        raise HTTPException(status_code=502, detail="Translation failed. Please retry.")
+    return {"original_text": text, "translated_text": translated,
+            "target_language": target_language,
+            "original_contacts": [item.model_dump() for item in original_contacts],
+            "translated_contacts": labels}

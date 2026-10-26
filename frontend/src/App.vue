@@ -1,4 +1,6 @@
 <script setup>
+import { appLanguage, setLanguage, t } from './utils/i18n';
+import { speechLanguages } from './utils/translation';
 import { onMounted, ref } from 'vue';
 import { authApi } from './api/authApi';
 import LoginPage from './pages/LoginPage.vue';
@@ -45,7 +47,8 @@ function handleSignedOut() {
 </script>
 
 <template>
-  <div v-if="checking" class="boot" role="status">SafeOps를 준비하고 있어요…</div>
+  <div class="global-language"><select :value="appLanguage" aria-label="Interface language" @change="setLanguage($event.target.value)"><option v-for="item in speechLanguages" :value="item.code" :key="item.code">{{ item.label }}</option></select></div>
+  <div v-if="checking" class="boot" role="status">{{ t("SafeOps를 준비하고 있어요…") }}</div>
   <LoginPage
     v-else-if="!user"
     @authenticated="handleAuthenticated"

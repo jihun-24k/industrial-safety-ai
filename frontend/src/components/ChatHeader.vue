@@ -1,4 +1,5 @@
 <script setup>
+import { t } from '../utils/i18n';
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
 import { speechLanguages } from '../utils/translation';
 import BrandLogo from './BrandLogo.vue';
@@ -38,22 +39,22 @@ onBeforeUnmount(() => {
 <template>
   <header class="chat-header">
     <div>
-      <button class="mobile-menu" aria-label="메뉴 열기" @click="$emit('open-menu')">☰</button>
+      <button class="mobile-menu" :aria-label="t(&quot;메뉴 열기&quot;)" @click="$emit('open-menu')">☰</button>
       <BrandLogo @click.prevent="$emit('new-chat')" />
     </div>
     <div class="header-actions">
-      <button class="history-toggle" @click="$emit('open-menu')">상담 기록</button>
-      <button v-if="!demo" type="button" class="ops-toggle" :disabled="modeDisabled" @click="$emit('open-dashboard')">운영 현황</button>
+      <button class="history-toggle" @click="$emit('open-menu')">{{ t("상담 기록") }}</button>
+      <button v-if="!demo" type="button" class="ops-toggle" :disabled="modeDisabled" @click="$emit('open-dashboard')">{{ t("운영 현황") }}</button>
       <details ref="languageMenu" class="speech-language" @toggle="(modeDisabled || demo) && languageMenu && (languageMenu.open = false)">
-        <summary ref="languageTrigger" class="language-trigger" :aria-disabled="modeDisabled || demo" aria-label="답변 음성 언어 선택" @click="(modeDisabled || demo) && $event.preventDefault()">
+        <summary ref="languageTrigger" class="language-trigger" :aria-disabled="modeDisabled || demo" :aria-label="t(&quot;답변 음성 언어 선택&quot;)" @click="(modeDisabled || demo) && $event.preventDefault()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c5 5 5 13 0 18-5-5-5-13 0-18Z"/></svg>
-          <span>{{ selectedLanguage }}</span>
+          <span>{{ t(selectedLanguage) }}</span>
           <svg class="language-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 8 4 4 4-4"/></svg>
         </summary>
-        <div class="language-options" aria-label="답변 음성 언어">
-          <span class="language-menu-label">답변 음성 언어</span>
+        <div class="language-options" :aria-label="t(&quot;답변 음성 언어&quot;)">
+          <span class="language-menu-label">{{ t("답변 음성 언어") }}</span>
           <button v-for="item in speechLanguages" :key="item.code" type="button" :class="{ selected: item.code === language }" :aria-label="item.label" :aria-pressed="item.code === language" :disabled="modeDisabled || demo" @click="selectLanguage(item.code)">
-            <span>{{ item.label }}</span><span class="language-check" aria-hidden="true">{{ item.code === language ? '✓' : '' }}</span>
+            <span>{{ t(item.label) }}</span><span class="language-check" aria-hidden="true">{{ t(item.code === language ? '✓' : '') }}</span>
           </button>
         </div>
       </details>
@@ -61,7 +62,7 @@ onBeforeUnmount(() => {
         type="button"
         class="stream-toggle"
         :class="{ active: streaming }"
-        aria-label="답변 스트리밍"
+        :aria-label="t(&quot;답변 스트리밍&quot;)"
         role="switch"
         :aria-checked="streaming"
         :disabled="modeDisabled || demo"
@@ -69,9 +70,9 @@ onBeforeUnmount(() => {
         @click="$emit('update:streaming', !streaming)"
       >
         <span class="toggle-track"><i></i></span>
-        <span class="stream-label">{{ streaming ? '스트리밍' : '한 번에' }}</span>
+        <span class="stream-label">{{ t(streaming ? '스트리밍' : '한 번에') }}</span>
       </button>
-      <span class="status-badge"><i></i>{{ demo ? '미리보기' : 'AI 어시스턴트' }}</span>
+      <span class="status-badge"><i></i>{{ t(demo ? '미리보기' : 'AI 어시스턴트') }}</span>
     </div>
   </header>
 </template>

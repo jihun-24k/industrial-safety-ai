@@ -1,4 +1,5 @@
 <script setup>
+import { t } from '../utils/i18n';
 import { computed, onMounted, ref } from 'vue';
 import BrandLogo from '../components/BrandLogo.vue';
 import { opsApi } from '../api/opsApi';
@@ -116,41 +117,41 @@ onMounted(load);
         <BrandLogo @click.prevent="emit('back')" />
         <div>
           <span class="section-tag">OPERATIONS</span>
-          <h1>운영 현황</h1>
+          <h1>{{ t(t("운영 현황")) }}</h1>
         </div>
       </div>
       <div class="ops-actions">
-        <div class="ops-periods" role="group" aria-label="집계 기간">
+        <div class="ops-periods" role="group" :aria-label="t(&quot;집계 기간&quot;)">
           <button v-for="period in periods" :key="period.days" type="button"
                   :aria-pressed="days === period.days" :disabled="loading" @click="selectPeriod(period.days)">
-            {{ period.label }}
+            {{ t(t(period.label)) }}
           </button>
         </div>
-        <button type="button" class="ops-secondary" :disabled="loading" @click="load">{{ loading ? '불러오는 중…' : '새로고침' }}</button>
-        <button type="button" class="ops-primary" @click="emit('back')">상담 화면으로</button>
+        <button type="button" class="ops-secondary" :disabled="loading" @click="load">{{ t(t(loading ? '불러오는 중…' : '새로고침')) }}</button>
+        <button type="button" class="ops-primary" @click="emit('back')">{{ t(t("상담 화면으로")) }}</button>
       </div>
     </header>
 
-    <p v-if="error" class="ops-alert" role="alert">{{ error }} <button type="button" aria-label="닫기" @click="error = ''">×</button></p>
-    <p v-if="notice" class="ops-notice" role="status">{{ notice }} <button type="button" aria-label="닫기" @click="notice = ''">×</button></p>
+    <p v-if="error" class="ops-alert" role="alert">{{ t(t(error)) }} <button type="button" :aria-label="t(&quot;닫기&quot;)" @click="error = ''">×</button></p>
+    <p v-if="notice" class="ops-notice" role="status">{{ t(t(notice)) }} <button type="button" :aria-label="t(&quot;닫기&quot;)" @click="notice = ''">×</button></p>
 
-    <div v-if="!data && loading" class="ops-empty glass-card" role="status">운영 지표를 불러오고 있어요…</div>
+    <div v-if="!data && loading" class="ops-empty glass-card" role="status">{{ t(t("운영 지표를 불러오고 있어요…")) }}</div>
 
     <template v-else-if="data">
       <!-- 누적 현황: 맨 위에서 한눈에 -->
-      <section class="ops-tiles" aria-label="누적 현황">
+      <section class="ops-tiles" :aria-label="t(&quot;누적 현황&quot;)">
         <article v-for="tile in tiles" :key="tile.label" class="ops-tile glass-card" :class="tile.tone && `tone-${tile.tone}`">
-          <span class="ops-tile-label">{{ tile.label }}</span>
-          <strong class="ops-tile-value">{{ tile.value }}</strong>
-          <span class="ops-tile-note">{{ tile.note }}</span>
+          <span class="ops-tile-label">{{ t(t(tile.label)) }}</span>
+          <strong class="ops-tile-value">{{ t(t(tile.value)) }}</strong>
+          <span class="ops-tile-note">{{ t(t(tile.note)) }}</span>
         </article>
       </section>
-      <p class="ops-signals">{{ signals.join(' · ') }} · 기준 {{ data.window_days }}일 · {{ formatDateTime(data.generated_at) }} 집계</p>
+      <p class="ops-signals">{{ t(t(signals.join(' · '))) }}{{ t(t(" · 기준 ")) }}{{ t(t(data.window_days)) }}{{ t(t("일 · ")) }}{{ t(t(formatDateTime(data.generated_at))) }}{{ t(t(" 집계")) }}</p>
 
       <div v-if="!hasLogs" class="ops-empty glass-card">
-        <h2>아직 쌓인 상담 로그가 없어요</h2>
-        <p>상담 화면에서 질문하면 질문·답변·출처·응답 시간이 자동으로 기록되고, 이곳에 누적 현황이 나타납니다.</p>
-        <button type="button" class="ops-primary" @click="emit('back')">첫 질문 하러 가기</button>
+        <h2>{{ t(t("아직 쌓인 상담 로그가 없어요")) }}</h2>
+        <p>{{ t(t("상담 화면에서 질문하면 질문·답변·출처·응답 시간이 자동으로 기록되고, 이곳에 누적 현황이 나타납니다.")) }}</p>
+        <button type="button" class="ops-primary" @click="emit('back')">{{ t(t("첫 질문 하러 가기")) }}</button>
       </div>
 
       <template v-else>
@@ -158,23 +159,23 @@ onMounted(load);
           <!-- 최근 상담 맥락 -->
           <section class="ops-panel glass-card ops-context" aria-labelledby="ops-recent">
             <div class="ops-panel-head">
-              <h2 id="ops-recent">최근 상담 맥락</h2>
-              <span>최근 {{ data.recent.length }}건</span>
+              <h2 id="ops-recent">{{ t(t("최근 상담 맥락")) }}</h2>
+              <span>{{ t(t("최근 ")) }}{{ t(t(data.recent.length)) }}{{ t(t("건")) }}</span>
             </div>
             <ol class="ops-logs">
               <li v-for="log in data.recent" :key="log.id">
                 <div class="ops-log-meta">
-                  <span class="ops-log-time">{{ formatDateTime(log.created_at) }}</span>
-                  <span>{{ log.username }}</span>
-                  <span v-if="log.conversation_title" class="ops-log-conv">대화: {{ log.conversation_title }}</span>
-                  <span class="ops-log-latency">{{ formatLatency(log.latency_ms) }}</span>
+                  <span class="ops-log-time">{{ t(t(formatDateTime(log.created_at))) }}</span>
+                  <span>{{ t(t(log.username)) }}</span>
+                  <span v-if="log.conversation_title" class="ops-log-conv">{{ t(t("대화: ")) }}{{ t(t(log.conversation_title)) }}</span>
+                  <span class="ops-log-latency">{{ t(t(formatLatency(log.latency_ms))) }}</span>
                 </div>
-                <p v-if="log.conversation_summary" class="ops-log-summary">맥락 요약 · {{ log.conversation_summary }}</p>
-                <p class="ops-log-q"><b>Q</b> {{ log.question }}</p>
-                <p class="ops-log-a"><b>A</b> {{ log.answer_preview }}</p>
+                <p v-if="log.conversation_summary" class="ops-log-summary">{{ t(t("맥락 요약 · ")) }}{{ t(t(log.conversation_summary)) }}</p>
+                <p class="ops-log-q"><b>Q</b> {{ t(t(log.question)) }}</p>
+                <p class="ops-log-a"><b>A</b> {{ t(t(log.answer_preview)) }}</p>
                 <div class="ops-chips">
-                  <span v-for="chip in logChips(log)" :key="chip.label" class="ops-chip" :class="`chip-${chip.kind}`">{{ chip.label }}</span>
-                  <span v-if="log.sources.length" class="ops-chip chip-plain">출처 {{ log.sources[0] }}<template v-if="log.sources.length > 1"> 외 {{ log.sources.length - 1 }}</template></span>
+                  <span v-for="chip in logChips(log)" :key="chip.label" class="ops-chip" :class="`chip-${chip.kind}`">{{ t(t(chip.label)) }}</span>
+                  <span v-if="log.sources.length" class="ops-chip chip-plain">{{ t(t("출처 ")) }}{{ t(t(log.sources[0])) }}<template v-if="log.sources.length > 1">{{ t(t(" 외 ")) }}{{ t(t(log.sources.length - 1)) }}</template></span>
                 </div>
               </li>
             </ol>
@@ -184,42 +185,42 @@ onMounted(load);
             <!-- 일별 추이 -->
             <section class="ops-panel glass-card" aria-labelledby="ops-daily">
               <div class="ops-panel-head">
-                <h2 id="ops-daily">일별 질문 수</h2>
-                <span class="ops-legend"><i class="legend-q"></i>질문 <i class="legend-h"></i>근거 없음</span>
+                <h2 id="ops-daily">{{ t(t("일별 질문 수")) }}</h2>
+                <span class="ops-legend"><i class="legend-q"></i>{{ t(t("질문 ")) }}<i class="legend-h"></i>{{ t(t("근거 없음")) }}</span>
               </div>
               <div class="ops-chart-wrap">
                 <svg class="ops-chart" :viewBox="`0 0 ${Math.max(chart.bars.length * 36 + 40, 240)} 160`" role="img"
                      :aria-label="`최근 ${chart.bars.length}일 질문 수, 최대 ${chart.max}건`">
                   <g v-for="tick in chart.ticks" :key="tick">
                     <line x1="32" :x2="chart.bars.length * 36 + 36" :y1="130 - (tick / chart.max) * 120" :y2="130 - (tick / chart.max) * 120" class="chart-grid" />
-                    <text x="26" :y="134 - (tick / chart.max) * 120" text-anchor="end" class="chart-axis">{{ tick }}</text>
+                    <text x="26" :y="134 - (tick / chart.max) * 120" text-anchor="end" class="chart-axis">{{ t(t(tick)) }}</text>
                   </g>
                   <g v-for="(bar, index) in chart.bars" :key="bar.date">
                     <rect :x="40 + index * 36" :y="130 - bar.questionHeight" width="22" :height="bar.questionHeight" rx="4" class="chart-bar">
-                      <title>{{ bar.label }} 질문 {{ bar.questions }}건 · 근거 없음 {{ bar.handoff }}건</title>
+                      <title>{{ t(t(bar.label)) }}{{ t(t(" 질문 ")) }}{{ t(t(bar.questions)) }}{{ t(t("건 · 근거 없음 ")) }}{{ t(t(bar.handoff)) }}{{ t(t("건")) }}</title>
                     </rect>
                     <rect v-if="bar.handoffHeight" :x="40 + index * 36" :y="130 - bar.handoffHeight" width="22" :height="bar.handoffHeight" rx="4" class="chart-bar-handoff" />
-                    <text :x="51 + index * 36" y="150" text-anchor="middle" class="chart-axis">{{ chart.bars.length > 10 && index % 3 ? '' : bar.label }}</text>
+                    <text :x="51 + index * 36" y="150" text-anchor="middle" class="chart-axis">{{ t(t(chart.bars.length > 10 && index % 3 ? '' : bar.label)) }}</text>
                   </g>
                 </svg>
               </div>
             </section>
 
             <section class="ops-panel glass-card" aria-labelledby="ops-frequent">
-              <div class="ops-panel-head"><h2 id="ops-frequent">자주 묻는 질문</h2></div>
+              <div class="ops-panel-head"><h2 id="ops-frequent">{{ t(t("자주 묻는 질문")) }}</h2></div>
               <ol class="ops-rank">
                 <li v-for="item in data.frequent_questions" :key="item.question">
-                  <span>{{ item.question }}</span>
-                  <b>{{ item.count }}회</b>
-                  <em v-if="item.handoff" class="ops-chip chip-critical">근거 없음 {{ item.handoff }}</em>
+                  <span>{{ t(t(item.question)) }}</span>
+                  <b>{{ t(t(item.count)) }}{{ t(t("회")) }}</b>
+                  <em v-if="item.handoff" class="ops-chip chip-critical">{{ t(t("근거 없음 ")) }}{{ t(t(item.handoff)) }}</em>
                 </li>
               </ol>
             </section>
 
             <section v-if="data.top_materials.length" class="ops-panel glass-card" aria-labelledby="ops-materials">
-              <div class="ops-panel-head"><h2 id="ops-materials">많이 언급된 물질</h2></div>
+              <div class="ops-panel-head"><h2 id="ops-materials">{{ t(t("많이 언급된 물질")) }}</h2></div>
               <ul class="ops-tags">
-                <li v-for="item in data.top_materials" :key="item.name">{{ item.name }} <b>{{ item.count }}</b></li>
+                <li v-for="item in data.top_materials" :key="item.name">{{ t(t(item.name)) }} <b>{{ t(t(item.count)) }}</b></li>
               </ul>
             </section>
           </div>
@@ -229,36 +230,36 @@ onMounted(load);
         <div class="ops-grid ops-grid-even">
           <section class="ops-panel glass-card" aria-labelledby="ops-attention">
             <div class="ops-panel-head">
-              <h2 id="ops-attention">확인이 필요한 답변</h2>
-              <span>근거 없음 · ▼ 평가</span>
+              <h2 id="ops-attention">{{ t(t("확인이 필요한 답변")) }}</h2>
+              <span>{{ t(t("근거 없음 · ▼ 평가")) }}</span>
             </div>
-            <p v-if="!data.attention.length" class="ops-muted">지금은 확인할 답변이 없어요.</p>
+            <p v-if="!data.attention.length" class="ops-muted">{{ t(t("지금은 확인할 답변이 없어요.")) }}</p>
             <ol class="ops-logs compact">
               <li v-for="log in data.attention" :key="log.id">
-                <div class="ops-log-meta"><span class="ops-log-time">{{ formatDateTime(log.created_at) }}</span><span>{{ log.username }}</span></div>
-                <p class="ops-log-q"><b>Q</b> {{ log.question }}</p>
-                <p class="ops-log-a"><b>A</b> {{ log.answer_preview }}</p>
-                <p v-if="log.feedback_note" class="ops-log-summary">사용자 의견 · {{ log.feedback_note }}</p>
+                <div class="ops-log-meta"><span class="ops-log-time">{{ t(t(formatDateTime(log.created_at))) }}</span><span>{{ t(t(log.username)) }}</span></div>
+                <p class="ops-log-q"><b>Q</b> {{ t(t(log.question)) }}</p>
+                <p class="ops-log-a"><b>A</b> {{ t(t(log.answer_preview)) }}</p>
+                <p v-if="log.feedback_note" class="ops-log-summary">{{ t(t("사용자 의견 · ")) }}{{ t(t(log.feedback_note)) }}</p>
                 <div class="ops-chips">
-                  <span v-for="chip in logChips(log)" :key="chip.label" class="ops-chip" :class="`chip-${chip.kind}`">{{ chip.label }}</span>
+                  <span v-for="chip in logChips(log)" :key="chip.label" class="ops-chip" :class="`chip-${chip.kind}`">{{ t(t(chip.label)) }}</span>
                 </div>
-                <button type="button" class="ops-secondary small" @click="startVerify(log)">답변 고쳐서 검증 Q&A로 등록</button>
+                <button type="button" class="ops-secondary small" @click="startVerify(log)">{{ t(t("답변 고쳐서 검증 Q&A로 등록")) }}</button>
               </li>
             </ol>
           </section>
 
           <section class="ops-panel glass-card" aria-labelledby="ops-candidates">
             <div class="ops-panel-head">
-              <h2 id="ops-candidates">검증 Q&A 후보</h2>
-              <span>▲ 도움됨 평가</span>
+              <h2 id="ops-candidates">{{ t(t("검증 Q&A 후보")) }}</h2>
+              <span>{{ t(t("▲ 도움됨 평가")) }}</span>
             </div>
-            <p v-if="!data.candidates.length" class="ops-muted">사용자가 ▲ 도움됐어요를 누른 답변이 여기에 모여요.</p>
+            <p v-if="!data.candidates.length" class="ops-muted">{{ t(t("사용자가 ▲ 도움됐어요를 누른 답변이 여기에 모여요.")) }}</p>
             <ol class="ops-logs compact">
               <li v-for="log in data.candidates" :key="log.id">
-                <div class="ops-log-meta"><span class="ops-log-time">{{ formatDateTime(log.created_at) }}</span><span>{{ log.username }}</span></div>
-                <p class="ops-log-q"><b>Q</b> {{ log.question }}</p>
-                <p class="ops-log-a"><b>A</b> {{ log.answer_preview }}</p>
-                <button type="button" class="ops-primary small" @click="startVerify(log)">검증 Q&A로 등록</button>
+                <div class="ops-log-meta"><span class="ops-log-time">{{ t(t(formatDateTime(log.created_at))) }}</span><span>{{ t(t(log.username)) }}</span></div>
+                <p class="ops-log-q"><b>Q</b> {{ t(t(log.question)) }}</p>
+                <p class="ops-log-a"><b>A</b> {{ t(t(log.answer_preview)) }}</p>
+                <button type="button" class="ops-primary small" @click="startVerify(log)">{{ t(t("검증 Q&A로 등록")) }}</button>
               </li>
             </ol>
           </section>
@@ -266,37 +267,37 @@ onMounted(load);
 
         <section v-if="editing" class="ops-panel glass-card ops-editor" aria-labelledby="ops-editor-title">
           <div class="ops-panel-head">
-            <h2 id="ops-editor-title">검증 Q&A 등록 · 로그 #{{ editing.logId }}</h2>
-            <span>등록하면 비슷한 질문의 답변 근거로 함께 쓰입니다</span>
+            <h2 id="ops-editor-title">{{ t(t("검증 Q&A 등록 · 로그 #")) }}{{ t(t(editing.logId)) }}</h2>
+            <span>{{ t(t("등록하면 비슷한 질문의 답변 근거로 함께 쓰입니다")) }}</span>
           </div>
-          <label for="ops-verify-question">대표 질문 (검색에 쓰임)</label>
+          <label for="ops-verify-question">{{ t(t("대표 질문 (검색에 쓰임)")) }}</label>
           <input id="ops-verify-question" v-model="editing.question" maxlength="2000" />
-          <label for="ops-verify-answer">확인한 답변 (필요하면 고쳐서 저장)</label>
+          <label for="ops-verify-answer">{{ t(t("확인한 답변 (필요하면 고쳐서 저장)")) }}</label>
           <textarea id="ops-verify-answer" v-model="editing.answer" rows="9" maxlength="8000"></textarea>
-          <p class="ops-muted">매뉴얼 원문과 맞는지 확인한 뒤 등록하세요. 원래 답변의 출처가 함께 저장됩니다.</p>
+          <p class="ops-muted">{{ t(t("매뉴얼 원문과 맞는지 확인한 뒤 등록하세요. 원래 답변의 출처가 함께 저장됩니다.")) }}</p>
           <div class="ops-actions">
-            <button type="button" class="ops-secondary" :disabled="saving" @click="editing = null">취소</button>
-            <button type="button" class="ops-primary" :disabled="saving" @click="saveVerify">{{ saving ? '저장 중…' : '검증 Q&A로 등록' }}</button>
+            <button type="button" class="ops-secondary" :disabled="saving" @click="editing = null">{{ t(t("취소")) }}</button>
+            <button type="button" class="ops-primary" :disabled="saving" @click="saveVerify">{{ t(t(saving ? '저장 중…' : '검증 Q&A로 등록')) }}</button>
           </div>
         </section>
 
         <section class="ops-panel glass-card" aria-labelledby="ops-verified">
           <div class="ops-panel-head">
-            <h2 id="ops-verified">검증 Q&A ({{ verified.length }})</h2>
-            <span>운영자가 확인한 답변 · RAG 근거로 함께 제공</span>
+            <h2 id="ops-verified">{{ t(t("검증 Q&A (")) }}{{ t(t(verified.length)) }})</h2>
+            <span>{{ t(t("운영자가 확인한 답변 · RAG 근거로 함께 제공")) }}</span>
           </div>
-          <p v-if="!verified.length" class="ops-muted">아직 등록된 검증 Q&A가 없어요. 위 목록에서 답변을 확인해 등록해 보세요.</p>
+          <p v-if="!verified.length" class="ops-muted">{{ t(t("아직 등록된 검증 Q&A가 없어요. 위 목록에서 답변을 확인해 등록해 보세요.")) }}</p>
           <ol class="ops-logs compact">
             <li v-for="item in verified" :key="item.id">
               <div class="ops-log-meta">
-                <span class="ops-chip chip-good">#{{ item.id }}</span>
-                <span>{{ item.created_by }}</span>
-                <span class="ops-log-time">{{ formatDateTime(item.created_at) }}</span>
-                <span v-if="item.source_log_id">원본 로그 #{{ item.source_log_id }}</span>
+                <span class="ops-chip chip-good">#{{ t(t(item.id)) }}</span>
+                <span>{{ t(t(item.created_by)) }}</span>
+                <span class="ops-log-time">{{ t(t(formatDateTime(item.created_at))) }}</span>
+                <span v-if="item.source_log_id">{{ t(t("원본 로그 #")) }}{{ t(t(item.source_log_id)) }}</span>
               </div>
-              <p class="ops-log-q"><b>Q</b> {{ item.question }}</p>
-              <p class="ops-log-a"><b>A</b> {{ item.answer.length > 180 ? item.answer.slice(0, 179) + '…' : item.answer }}</p>
-              <button type="button" class="ops-secondary small" :disabled="saving" @click="retire(item)">사용 중지</button>
+              <p class="ops-log-q"><b>Q</b> {{ t(t(item.question)) }}</p>
+              <p class="ops-log-a"><b>A</b> {{ t(t(item.answer.length > 180 ? item.answer.slice(0, 179) + '…' : item.answer)) }}</p>
+              <button type="button" class="ops-secondary small" :disabled="saving" @click="retire(item)">{{ t(t("사용 중지")) }}</button>
             </li>
           </ol>
         </section>

@@ -1,4 +1,5 @@
 <script setup>
+import { t } from '../utils/i18n';
 import BrandLogo from './BrandLogo.vue';
 import { watch, nextTick, ref } from 'vue';
 
@@ -29,18 +30,18 @@ function onKeydown(event) {
 </script>
 
 <template>
-  <button v-if="open" class="sidebar-overlay" aria-label="메뉴 닫기" @click="$emit('close')"></button>
-  <aside ref="drawer" class="sidebar" :class="{ open }" :inert="!open" :aria-hidden="!open" role="dialog" :aria-modal="open" aria-label="상담 기록 메뉴" @keydown="onKeydown">
-    <button class="sidebar-close" aria-label="메뉴 닫기" @click="$emit('close')">×</button>
+  <button v-if="open" class="sidebar-overlay" :aria-label="t(&quot;메뉴 닫기&quot;)" @click="$emit('close')"></button>
+  <aside ref="drawer" class="sidebar" :class="{ open }" :inert="!open" :aria-hidden="!open" role="dialog" :aria-modal="open" :aria-label="t(&quot;상담 기록 메뉴&quot;)" @keydown="onKeydown">
+    <button class="sidebar-close" :aria-label="t(&quot;메뉴 닫기&quot;)" @click="$emit('close')">×</button>
     <BrandLogo @click.prevent="$emit('new-chat')" />
-    <span class="sidebar-subtitle">산업안전 AI 파트너</span>
+    <span class="sidebar-subtitle">{{ t("산업안전 AI 파트너") }}</span>
     <button class="new-chat" :disabled="disabled" @click="$emit('new-chat')">
-      ＋ <span>새 대화 시작</span><span>↗</span>
+      ＋ <span>{{ t("새 대화 시작") }}</span><span>↗</span>
     </button>
 
-    <div class="history-label">대화 기록 <span>{{ conversations.length }}</span></div>
-    <nav class="history" aria-label="대화 기록">
-      <p v-if="!conversations.length" class="empty-history">첫 번째 대화를 시작해 보세요.</p>
+    <div class="history-label">{{ t("대화 기록 ") }}<span>{{ t(conversations.length) }}</span></div>
+    <nav class="history" :aria-label="t(&quot;대화 기록&quot;)">
+      <p v-if="!conversations.length" class="empty-history">{{ t("첫 번째 대화를 시작해 보세요.") }}</p>
       <button
         v-for="chat in conversations"
         :key="chat.id"
@@ -48,16 +49,16 @@ function onKeydown(event) {
         :disabled="disabled"
         @click="$emit('select-chat', chat)"
       >
-        <span>◌</span> {{ chat.title }}
+        <span>◌</span> {{ t(chat.title) }}
       </button>
     </nav>
 
     <div class="sidebar-bottom">
-      <div class="privacy-note"><span>◇</span><p>안전을 위한 질문,<br><strong>언제든 편하게 물어보세요.</strong></p></div>
+      <div class="privacy-note"><span>◇</span><p>{{ t("안전을 위한 질문,") }}<br><strong>{{ t("언제든 편하게 물어보세요.") }}</strong></p></div>
       <div class="account">
-        <span class="avatar">{{ user.slice(0, 1) }}</span>
-        <div><strong>{{ user }}</strong><small>{{ demo ? '화면 미리보기' : '로그인됨' }}</small></div>
-        <button :disabled="disabled" aria-label="로그아웃" title="로그아웃" @click="$emit('logout')">↪</button>
+        <span class="avatar">{{ t(user.slice(0, 1)) }}</span>
+        <div><strong>{{ t(user) }}</strong><small>{{ t(demo ? '화면 미리보기' : '로그인됨') }}</small></div>
+        <button :disabled="disabled" :aria-label="t(&quot;로그아웃&quot;)" :title="t(&quot;로그아웃&quot;)" @click="$emit('logout')">↪</button>
       </div>
     </div>
   </aside>

@@ -1,5 +1,8 @@
 <script setup>
-import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { t } from '../utils/i18n';
+import { appLanguage, setLanguage } from '../utils/i18n';
+import { translationFor } from '../utils/translation';
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { authApi } from '../api/authApi';
 import { ragApi } from '../api/ragApi';
 import { opsApi } from '../api/opsApi';
@@ -33,7 +36,7 @@ const pendingConversation = ref(null);
 const menu = ref(false);
 const speakingId = ref(null);
 const ttsLoading = ref(null);
-const speechLanguage = ref('ko');
+const speechLanguage = appLanguage;
 const messageList = ref(null);
 const streamingEnabled = ref(true);
 let audio = null;
@@ -107,9 +110,28 @@ function scroll() {
   messageList.value?.scrollToBottom();
 }
 
+const translating = new Set();
+async function translateVisibleAnswers() {
+  const language = speechLanguage.value;
+  if (language === 'ko' || props.demo) return;
+  for (const message of messages.value.filter(m => m.role === 'assistant' && m.text && !m.pending && !m.streaming)) {
+    const key = `${message.id}:${language}:${message.text}`;
+    if (translationFor(message, language) || translating.has(key)) continue;
+    translating.add(key);
+    message.translationError = '';
+    try {
+      const contacts = isInformationOnly(questionForReply(messages.value, message)) ? [] : (message.contacts || answerContacts(message.text));
+      const data = await voiceApi.translate(message.text, language, contactTranslationInput(contacts));
+      if (speechLanguage.value === language && data.original_text === message.text) message.speechTranslation = data;
+    } catch (err) { message.translationError = err.message; }
+    finally { translating.delete(key); }
+  }
+}
+watch(() => [speechLanguage.value, ...messages.value.map(m => `${m.id}:${m.streaming}:${m.pending}:${m.text?.length}`)], translateVisibleAnswers, { immediate: true });
+
 function changeSpeechLanguage(language) {
   stopAudio();
-  speechLanguage.value = language;
+  setLanguage(language);
 }
 
 function stopAudio() {
@@ -420,7 +442,7 @@ async function speak(message) {
         @new-chat="newChat"
         @open-dashboard="openDashboard"
       />
-      <div v-if="demo" class="demo-banner">화면 미리보기 모드입니다. 답변은 예시이며 실제 자료를 검색하지 않습니다.</div>
+      <div v-if="demo" class="demo-banner">{{ t(t("화면 미리보기 모드입니다. 답변은 예시이며 실제 자료를 검색하지 않습니다.")) }}</div>
       <MessageList
         ref="messageList"
         :messages="messages"
@@ -452,7 +474,7 @@ async function speak(message) {
       />
     </main>
     <aside v-if="railContacts.length" class="desktop-contact-rail" :aria-label="contactCopy.recent">
-      <p class="rail-label">{{ contactCopy.recent }}</p>
+      <p class="rail-label">{{ t(t(contactCopy.recent)) }}</p>
       <ContactCards :contacts="railContacts" :demo="demo" :language="speechLanguage" />
     </aside>
   </div>

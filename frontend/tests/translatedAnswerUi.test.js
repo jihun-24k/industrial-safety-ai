@@ -58,7 +58,7 @@ test('translated text remains escaped and language changes or stale results rest
   assert.ok(translated.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
   for (const [value, language] of [[message, 'ko'], [message, 'vi'], [{ ...message, text: '수정된 원문' }, 'en']]) {
     const html = await render(value, language);
-    assert.ok(!html.includes('class="original-answer'));
+    assert.equal(html.includes('class="original-answer'), language !== 'ko');
     assert.ok(!html.includes('Do not touch NaOH.'));
     assert.ok(html.includes(value.text === original ? 'NaOH를 만지지 마세요.' : value.text));
   }
